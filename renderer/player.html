@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>音乐播放器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;}
+body{background:#141a2c;color:#fff;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+#titlebar{display:flex;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);-webkit-app-region:drag;}
+#titlebar .label{flex:1;font-size:12px;color:rgba(200,210,240,.7);}
+#titlebar button{width:22px;height:22px;border:none;border-radius:5px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;font-size:13px;-webkit-app-region:no-drag;}
+#titlebar button:hover{background:rgba(77,107,254,.3);color:#fff;}
+#import-btn{margin:10px;padding:8px;border:2px dashed rgba(120,140,255,.3);border-radius:8px;text-align:center;cursor:pointer;font-size:12px;color:rgba(200,210,240,.6);background:transparent;}
+#import-btn:hover{background:rgba(77,107,254,.15);}
+#playlist{flex:1;overflow-y:auto;margin:0 10px;display:flex;flex-direction:column;gap:3px;}
+#playlist-empty{text-align:center;padding:15px 0;font-size:11px;color:rgba(200,210,240,.6);}
+.pl-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:11px;color:rgba(200,210,240,.6);}
+.pl-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+.pl-item.active{background:rgba(77,107,254,.2);color:#fff;border-left:3px solid #4d6bfe;}
+.pl-item .num{font-size:10px;color:rgba(200,210,240,.4);width:16px;text-align:right;flex-shrink:0;}
+.pl-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pl-item .del{border:none;background:transparent;color:rgba(255,100,100,.5);cursor:pointer;font-size:12px;padding:0 2px;}
+.pl-item .del:hover{color:#ff6060;}
+.progress{display:flex;align-items:center;gap:6px;margin:6px 10px;font-size:10px;color:rgba(200,210,240,.6);}
+.progress input{flex:1;}
+.ctrl{display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 0;}
+.ctrl button{width:34px;height:34px;border:none;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);color:#fff;}
+.ctrl button:hover{background:rgba(77,107,254,.3);}
+.ctrl button.play{background:#4d6bfe;width:40px;height:40px;font-size:18px;}
+.modes{display:flex;gap:6px;justify-content:center;padding:2px 0;}
+.modes button{border:1px solid rgba(120,140,255,.25);border-radius:7px;padding:5px 8px;font-size:10px;cursor:pointer;background:rgba(255,255,255,.06);color:rgba(200,210,240,.6);}
+.modes button.active{background:#4d6bfe;color:#fff;border-color:#4d6bfe;}
+.vol{display:flex;align-items:center;gap:6px;margin:6px 10px 12px;font-size:12px;color:rgba(200,210,240,.6);}
+.vol input{flex:1;}
+input[type=range]{-webkit-appearance:none;height:3px;border-radius:2px;background:rgba(255,255,255,.12);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#4d6bfe;cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="titlebar">
+  <span class="label">🎵 音乐播放器</span>
+  <button id="min-btn" title="最小化（音乐继续）">🗕</button>
+  <button id="close-btn" title="关闭">✕</button>
+</div>
+<button id="import-btn">📁 导入音频</button>
+<div id="playlist"></div>
+<div id="playlist-empty">还没有音频，点击上方导入</div>
+<div class="progress">
+  <span id="time-cur">00:00</span>
+  <input type="range" id="seek" min="0" max="1000" value="0">
+  <span id="time-total">00:00</span>
+</div>
+<div class="ctrl">
+  <button id="prev" title="上一首">⏮</button>
+  <button class="play" id="play">▶</button>
+  <button id="stop" title="停止">⏹</button>
+  <button id="next" title="下一首">⏭</button>
+</div>
+<div class="modes">
+  <button data-mode="seq" class="active">🔁 顺序</button>
+  <button data-mode="shuffle">🔀 随机</button>
+  <button data-mode="loop">🔂 循环</button>
+  <button data-mode="single">🔂 单曲</button>
+</div>
+<div class="vol">
+  <span>🔊</span>
+  <input type="range" id="vol" min="0" max="100" value="70">
+</div>
+<script>
+(function () {
+  var api = window.petBridge || {};
+  var audio = document.createElement('audio');
+  audio.preload = 'auto';
+  document.body.appendChild(audio);
+
+  var queue = [], index = -1, mode = 'seq', seeking = false;
+  function el(id) { return document.getElementById(id); }
+
+  function fmt(t) {
+    if (!t || !isFinite(t)) return '00:00';
+    var m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function refresh() {
+    var c = audio.currentTime || 0, d = audio.duration || 0;
+    el('time-cur').textContent = fmt(c);
+    el('time-total').textContent = fmt(d);
+    if (!seeking && d > 0) el('seek').value = Math.round(c / d * 1000);
+  }
+  ['loadedmetadata', 'durationchange', 'canplay', 'timeupdate'].forEach(function (ev) { audio.addEventListener(ev, refresh); });
+  audio.addEventListener('play', function () { el('play').textContent = '⏸'; });
+  audio.addEventListener('pause', function () { el('play').textContent = '▶'; });
+  audio.addEventListener('ended', function () {
+    el('play').textContent = '▶';
+    refresh();
+    var n = nextIndex();
+    if (n >= 0) setTimeout(function () { play(n); }, 300);
+  });
+
+  function renderList() {
+    var l = el('playlist'), e = el('playlist-empty');
+    l.innerHTML = '';
+    if (!queue.length) { e.style.display = 'block'; return; }
+    e.style.display = 'none';
+    queue.forEach(function (item, i) {
+      var d = document.createElement('div');
+      d.className = 'pl-item' + (i === index ? ' active' : '');
+      var num = document.createElement('span'); num.className = 'num'; num.textContent = String(i + 1);
+      var nm = document.createElement('span'); nm.className = 'name'; nm.textContent = item.name;
+      var del = document.createElement('button'); del.className = 'del'; del.textContent = '✕';
+      del.onclick = function (ev) { ev.stopPropagation(); removeTrack(i); };
+      d.onclick = function () { play(i); };
+      d.appendChild(num); d.appendChild(nm); d.appendChild(del);
+      l.appendChild(d);
+    });
+  }
+  function removeTrack(i) {
+    var r = queue.splice(i, 1)[0];
+    if (r && r.url) { try { URL.revokeObjectURL(r.url); } catch (e) {} }
+    if (index > i) index--;
+    else if (index === i) { stop(); index = -1; }
+    renderList();
+  }
+  function importAudio() {
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'audio/*'; inp.multiple = true;
+    inp.onchange = function () {
+      var fs = Array.from(inp.files || []);
+      if (!fs.length) return;
+      fs.forEach(function (f) { queue.push({ name: f.name, url: URL.createObjectURL(f) }); });
+      renderList();
+      if (index === -1) play(0);
+      if (api.musicComment) api.musicComment(fs[fs.length - 1].name.replace(/\.(mp3|wav|flac|ogg|m4a|aac|wma)$/i, ''));
+    };
+    inp.click();
+  }
+  function play(i) {
+    if (i < 0 || i >= queue.length) return;
+    index = i;
+    audio.src = queue[i].url;
+    audio.play().catch(function () {});
+    renderList();
+  }
+  function togglePlay() {
+    if (!audio.src && queue.length) { play(0); return; }
+    if (!audio.src) return;
+    if (audio.paused) audio.play().catch(function () {});
+    else audio.pause();
+  }
+  function stop() {
+    audio.pause();
+    audio.currentTime = 0;
+    refresh();
+  }
+  function nextIndex() {
+    var n = queue.length;
+    if (!n) return -1;
+    if (mode === 'single') return index;
+    if (mode === 'seq') return index + 1 < n ? index + 1 : -1;
+    if (mode === 'loop') return (index + 1) % n;
+    if (mode === 'shuffle') { if (n === 1) return 0; var x; do { x = Math.floor(Math.random() * n); } while (x === index); return x; }
+    return -1;
+  }
+  function prevIndex() {
+    var n = queue.length;
+    if (!n) return -1;
+    if (mode === 'shuffle') { if (n === 1) return 0; var x; do { x = Math.floor(Math.random() * n); } while (x === index); return x; }
+    var p = index - 1;
+    if (p < 0) return mode === 'loop' ? n - 1 : -1;
+    return p;
+  }
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.modes button').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === m); });
+  }
+
+  var actx = null, analyser = null, freqData = null;
+  function ensureAnalyser() {
+    if (analyser) return true;
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      var src = actx.createMediaElementSource(audio);
+      analyser = actx.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.6;
+      src.connect(analyser);
+      analyser.connect(actx.destination);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+      actx.addEventListener('statechange', function () {
+        if (actx && actx.state === 'suspended' && !audio.paused) actx.resume().catch(function () {});
+      });
+      return true;
+    } catch (e) { analyser = null; return false; }
+  }
+  audio.addEventListener('play', function () { if (ensureAnalyser() && actx && actx.state === 'suspended') actx.resume().catch(function () {}); });
+  setInterval(function () {
+    if (audio.paused || !api.sendAudioFreq) return;
+    var out;
+    if (analyser && freqData) { analyser.getByteFrequencyData(freqData); out = Array.from(freqData); }
+    else { out = Array.from({ length: 64 }, function () { return Math.floor(Math.random() * 220); }); }
+    try { api.sendAudioFreq(out); } catch (e) {}
+  }, 100);
+
+  el('import-btn').onclick = importAudio;
+  el('play').onclick = togglePlay;
+  el('stop').onclick = stop;
+  el('prev').onclick = function () { var i = prevIndex(); if (i >= 0) play(i); };
+  el('next').onclick = function () { var i = nextIndex(); if (i >= 0) play(i); };
+  el('vol').oninput = function (e) { audio.volume = Math.max(0, Math.min(1, parseInt(e.target.value) / 100)); };
+  el('seek').addEventListener('mousedown', function () { seeking = true; });
+  el('seek').addEventListener('mouseup', function () { seeking = false; });
+  el('seek').addEventListener('input', function (e) { var d = audio.duration; if (d && isFinite(d)) { audio.currentTime = parseInt(e.target.value) / 1000 * d; refresh(); } });
+  document.querySelectorAll('.modes button').forEach(function (b) { b.onclick = function () { setMode(b.dataset.mode); }; });
+  el('min-btn').onclick = function () { if (api.minimizePlayer) api.minimizePlayer(); };
+  el('close-btn').onclick = function () { if (api.closePanel) api.closePanel(); };
+
+  renderList();
+})();
+</script>
+</body>
+</html>

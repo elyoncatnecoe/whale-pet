@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>帮助</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;}
+body{background:#141a2c;color:#fff;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+#titlebar{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.08);-webkit-app-region:drag;}
+#titlebar .label{flex:1;font-size:13px;}
+#titlebar button{width:22px;height:22px;border:none;border-radius:5px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;font-size:13px;-webkit-app-region:no-drag;}
+#titlebar button:hover{background:rgba(255,100,100,.6);color:#fff;}
+#content{flex:1;overflow-y:auto;padding:14px;font-size:12.5px;line-height:1.7;}
+#content h3{margin:14px 0 6px;font-size:14px;color:#8fb0ff;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:4px;}
+#content h3:first-child{margin-top:0;}
+#content p{margin:3px 0;color:rgba(230,236,255,.9);}
+.kbd{display:inline-block;padding:0 6px;border-radius:4px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);font-size:11px;color:#fff;}
+</style>
+</head>
+<body>
+<div id="titlebar"><span class="label">📖 帮助</span><button id="close-btn">✕</button></div>
+<div id="content">
+  <h3>🖱️ 基本操作</h3>
+  <p><span class="kbd">左键拖动</span> 移动桌宠窗口</p>
+  <p><span class="kbd">左键单击</span> 弹出派活输入框 + 互动泡泡</p>
+  <p><span class="kbd">右键单击</span> 打开菜单（换皮肤 / 跳舞强度 / 播放器 / 帮助）</p>
+  <p><span class="kbd">右键拖动</span> 旋转视角</p>
+
+  <h3>🐟 互动</h3>
+  <p>点击鲸鱼后，窗口左侧会出现三个互动泡泡：</p>
+  <p>🐟 喂食 → 小鱼游入鲸鱼嘴里</p>
+  <p>💗 爱心 → 冒出爱心，鲸鱼欢快扑腾</p>
+  <p>💤 睡眠 → 鲸鱼闭眼入睡（再点一次或点击鲸鱼唤醒）</p>
+
+  <h3>🎨 换皮肤</h3>
+  <p>右键菜单 → 换皮肤：深寻蓝 / 虎鲸黑 / 草莓粉 / 薄荷绿 / 土豪金，或选「自定义配色」用取色器自由搭配身体与肚皮颜色。</p>
+
+  <h3>🎚 跳舞强度</h3>
+  <p>右键菜单 → 跳舞强度：关闭 / 低 / 中 / 高，控制播放音乐时鲸鱼随节奏跳舞的活跃度。</p>
+
+  <h3>🎵 播放器</h3>
+  <p>右键菜单 → 播放器：导入本地音频，虎鲸会随节拍打点、偶尔转圈、头顶冒音符。</p>
+
+  <h3>💬 派活</h3>
+  <p>单击鲸鱼 → 输入一句话，虎鲸会把它派给 dsh harness 并流式回显结果。需先启动 dsh web（默认 http://127.0.0.1:3080）。</p>
+</div>
+<script>
+(function(){var api=window.petBridge||{};document.getElementById('close-btn').onclick=function(){if(api.closePanel)api.closePanel();};})();
+</script>
+</body>
+</html>

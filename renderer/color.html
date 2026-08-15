@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>自定义配色</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;}
+body{background:#141a2c;color:#fff;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;padding:0 16px;}
+#titlebar{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);-webkit-app-region:drag;margin:0 -16px;padding-left:16px;padding-right:16px;}
+#titlebar .label{flex:1;font-size:13px;}
+#titlebar button{width:22px;height:22px;border:none;border-radius:5px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;font-size:13px;-webkit-app-region:no-drag;}
+#titlebar button:hover{background:rgba(255,100,100,.6);color:#fff;}
+.row{display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;}
+.row input[type=color]{width:52px;height:32px;border:none;border-radius:6px;cursor:pointer;background:transparent;padding:0;}
+#preview{flex:1;margin-top:16px;border-radius:10px;background:linear-gradient(180deg,var(--dark,#4d6bfe) 0%,var(--dark,#4d6bfe) 55%,var(--white,#fff) 55%,var(--white,#fff) 100%);border:1px solid rgba(255,255,255,.12);}
+#apply{margin:16px 0;padding:9px;border:none;border-radius:8px;background:#4d6bfe;color:#fff;font-size:13px;cursor:pointer;}
+#apply:hover{filter:brightness(1.15);}
+</style>
+</head>
+<body>
+<div id="titlebar">
+  <span class="label">🎨 自定义配色</span>
+  <button id="close-btn">✕</button>
+</div>
+<div class="row"><span>深色（身体/鳍）</span><input type="color" id="dark" value="#4d6bfe"></div>
+<div class="row"><span>浅色（肚皮/眼睛）</span><input type="color" id="white" value="#ffffff"></div>
+<div id="preview"></div>
+<button id="apply">应用配色</button>
+<script>
+(function () {
+  var api = window.petBridge || {};
+  var dark = document.getElementById('dark');
+  var white = document.getElementById('white');
+  var preview = document.getElementById('preview');
+  function updatePreview() {
+    preview.style.setProperty('--dark', dark.value);
+    preview.style.setProperty('--white', white.value);
+  }
+  dark.addEventListener('input', updatePreview);
+  white.addEventListener('input', updatePreview);
+  updatePreview();
+  document.getElementById('apply').onclick = function () {
+    if (api.sendCustomSkin) api.sendCustomSkin(dark.value, white.value);
+    if (api.closePanel) api.closePanel();
+  };
+  document.getElementById('close-btn').onclick = function () { if (api.closePanel) api.closePanel(); };
+})();
+</script>
+</body>
+</html>

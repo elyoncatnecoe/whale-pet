@@ -1,0 +1,16 @@
+{
+  "name": "whale-pet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "虎鲸桌宠：dsh harness 的桌面小伙伴（透明置顶悬浮窗）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}
