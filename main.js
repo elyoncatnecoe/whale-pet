@@ -229,19 +229,21 @@ async function call(method, payload) {
   return body.result.value
 }
 
-// 选一个会话：优先最新的非空白会话；没有则新建（cwd 用用户主目录）
-async function pickSession() {
+// 选「当前」会话：harness 没有"当前窗口"的 host 端信号，就用"最近有人发消息的会话"近似，
+// 也就是用户正在聊的那个窗口。每次派活都重新选，跟随用户切换窗口。
+async function pickCurrentSession() {
   try {
     const { items } = await call('session.list', {})
-    const live = items && items.filter((it) => !it.blank && !it.running)
+    const live = items && items.filter((it) => !it.blank)
     if (live && live.length > 0) {
       live.sort((a, b) => b.updatedAt - a.updatedAt)
       return live[0].sessionId
     }
-    const { sessionId: created } = await call('session.create', { cwd: process.env.USERPROFILE || process.env.HOME || '.' })
-    return created
+    // 没有任何非空白会话：新建一个（对应"刚打开一个全新窗口"的情况）
+    const { sessionId } = await call('session.create', { cwd: process.env.USERPROFILE || process.env.HOME || '.' })
+    return sessionId
   } catch (err) {
-    console.error('pickSession 失败:', err.message)
+    console.error('pickCurrentSession 失败:', err.message)
     return null
   }
 }
@@ -258,7 +260,7 @@ function handleFrame(frame) {
     case 'session/event': {
       const { event, sessionId: evSessionId } = frame.payload || {}
       if (!event || !event.type) return
-      // 只回显派活目标会话的文本；未选定会话前不转发，避免泄漏其它会话内容
+      // 只回显"当前"会话的文本；情绪跟随整体状态（任何会话的活动都算"在忙"）
       const watching = !!sessionId && evSessionId === sessionId
       if (event.type === 'assistant/chunk') {
         const chunk = event.data && event.data.chunk
@@ -342,7 +344,7 @@ function connectGateway() {
     connected = true
     if (win) win.webContents.send('pet:connection', { connected: true, url: GATEWAY_URL })
     // 仅在尚未选定会话时选取；重连不切换会话，避免派活中途丢失回复
-    if (!sessionId) pickSession().then((sid) => { sessionId = sid })
+    if (!sessionId) pickCurrentSession().then((sid) => { sessionId = sid })
   }, () => {
     connected = false
     if (win) win.webContents.send('pet:connection', { connected: false, url: GATEWAY_URL })
@@ -360,7 +362,9 @@ ipcMain.on('pet:prompt', async (event, text) => {
     return
   }
   try {
-    if (!sessionId) sessionId = await pickSession()
+    // 每次派活都重新选「当前窗口」的会话，跟随用户在 harness 里切换窗口
+    sessionId = await pickCurrentSession()
+    if (!sessionId) throw new Error('找不到可用的会话')
     await call('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }] })
   } catch (err) {
     event.reply('pet:reply', { error: `派活失败: ${err.message}` })

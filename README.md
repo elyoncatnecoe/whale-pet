@@ -32,12 +32,20 @@ npm start
 
 ## 与 dsh harness 的连接
 
-桌宠通过 `WHALE_PET_URL`（默认 `http://127.0.0.1:3080`）连接 dsh web：
+桌宠通过 `WHALE_PET_URL`（默认 `http://127.0.0.1:3080`，可用环境变量覆盖）连接 dsh web：
 
 - 事件流通过 WebSocket `/api/events.mux` 与 `/api/events.host` 订阅。
 - 派活通过 `POST /api/session.prompt`。
+- 桌宠是 harness 当前窗口的**遥控输入**：每次派活都自动选「最近有人发消息的会话」（即你正在用的那个窗口），所以虎鲸里发的消息会出现在 harness 当前打开的对应窗口里，并跟着你切换窗口走。回复既显示在虎鲸气泡里，也显示在对应窗口里。
 
 未连接 harness 时，换肤 / 播放器 / 互动等本地功能仍可正常使用，仅派活会提示「未连接」。
+
+### 可移植性
+
+桌宠不依赖安装位置，解压到任意目录、`npm install && npm start` 即可运行：
+
+- 所有资源用相对路径加载，窗口 / 面板 / vendor 脚本都随应用目录走。
+- 连接地址通过 `WHALE_PET_URL` 覆盖，适配不同端口 / 主机的 harness。
 
 ## 目录结构
 
