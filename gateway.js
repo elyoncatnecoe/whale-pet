@@ -12,6 +12,9 @@ const path = require('node:path')
 const crypto = require('node:crypto')
 const WebSocket = require('ws')
 
+/** 新版网关要求 prompt 带 requestId（UUID）。 */
+const randomUUID = () => crypto.randomUUID()
+
 // ---------- 基础工具 ----------
 function b64u(buf) {
   return Buffer.from(buf).toString('base64')
@@ -158,17 +161,37 @@ class Gateway {
 
   /**
    * 调用一个 RPC。
-   * 新版：POST /api/<domain>/<method>，body = { type, rpcId, method:'<domain>/<method>', payload:{ args:{ _request } } }
-   * 旧版：POST /api/<domain>.<method>，body 里 payload 直接就是业务参数。
-   * 这里先试新版，失败再试旧版。
+   *
+   * 新版 dsh（typert 网关）的形态是：
+   *   POST /api/<domain>/<method>
+   *   body = { type, rpcId, method:'<domain>/<method>', payload: { args: { <field>: {...} } } }
+   *
+   * 注意第 4 层那个字段名**随方法而异**，由该方法的 descriptor 决定：
+   *   session/list   → `_request`
+   *   session/prompt → `request`
+   * 所以这里逐个候选字段名试，哪个不报 "arguments-invalid" 就用哪个。
+   *
+   * 旧版（3080 端口）则是 POST /api/<domain>.<method>，payload 直接是业务参数，作为最后兜底。
    */
   async call(method, payload = {}) {
     const slash = method.replace('.', '/')
-    const attempts = [
-      { path: `/api/${slash}`, body: this.newEnvelope(slash, { args: { _request: payload } }) },
-      { path: `/api/${slash}`, body: this.newEnvelope(slash, { _request: payload }) },
-      { path: `/api/${method}`, body: this.newEnvelope(method, payload) },
-    ]
+    const wrapped = { ...payload }
+
+    // 新版必填字段：prompt 类方法要求带 requestId（新式 UUID）
+    if (slash === 'session/prompt' || slash === 'subagent/prompt') {
+      if (!wrapped.requestId) wrapped.requestId = randomUUID()
+    }
+
+    // 字段名候选：按经验把最常见的放前面，减少一次往返
+    const FIELD_CANDIDATES = ['request', '_request', 'args', 'params', 'input']
+
+    const attempts = []
+    for (const field of FIELD_CANDIDATES) {
+      attempts.push({ path: `/api/${slash}`, body: this.newEnvelope(slash, { args: { [field]: wrapped } }) })
+    }
+    // 旧版兜底
+    attempts.push({ path: `/api/${method}`, body: this.newEnvelope(method, payload) })
+
     let lastErr
     for (const attempt of attempts) {
       try {
@@ -189,6 +212,12 @@ class Gateway {
         if (!result) { lastErr = new Error(`${attempt.path} 响应缺少 result`); continue }
         if (result.ok !== true) {
           const err = result.error || {}
+          // 字段名猜错 / 参数不匹配：换下一个候选继续试，不算致命
+          if (err.code === 'gateway/arguments-invalid' || err.code === 'gateway/input-invalid'
+            || err.code === 'gateway/internal') {
+            lastErr = new Error(`${err.code}: ${err.message || ''}`)
+            continue
+          }
           lastErr = new Error(`${err.code || 'error'}: ${err.message || JSON.stringify(err)}`)
           continue
         }
