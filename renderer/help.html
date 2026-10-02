@@ -42,7 +42,9 @@ body{background:#141a2c;color:#fff;font-family:system-ui,"PingFang SC","Microsof
   <p>右键菜单 → 播放器：导入本地音频，虎鲸会随节拍打点、偶尔转圈、头顶冒音符。</p>
 
   <h3>💬 派活</h3>
-  <p>单击鲸鱼 → 输入一句话，虎鲸会把它派给 dsh harness 并流式回显结果。需先启动 dsh web（默认 http://127.0.0.1:3080）。</p>
+  <p>单击鲸鱼 → 输入一句话，虎鲸会把它派给 dsh harness 并流式回显结果。</p>
+  <p>消息会发送到 <b>harness 当前打开的窗口</b>（即最近在聊的那个会话），切窗口时自动跟随。需先启动 dsh；默认连接 <code>http://127.0.0.1:19387</code>，可用环境变量 <code>WHALE_PET_URL</code> 覆盖。</p>
+  <p>新版 dsh 需要鉴权，桌宠会自动读取 <code>~/.dsh/.credentials.yaml</code> 的密钥签发会话 Cookie，无需手动配置。</p>
 </div>
 <script>
 (function(){var api=window.petBridge||{};document.getElementById('close-btn').onclick=function(){if(api.closePanel)api.closePanel();};})();

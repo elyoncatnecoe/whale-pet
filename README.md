@@ -34,11 +34,14 @@ npm start
 
 ## 与 dsh harness 的连接
 
-桌宠通过 `WHALE_PET_URL`（默认 `http://127.0.0.1:3080`，可用环境变量覆盖）连接 dsh web：
+桌宠通过 `WHALE_PET_URL` 连接 harness，**默认 `http://127.0.0.1:19387`**（新版 dsh 桌面版端口；旧版 dsh web 用 3080，可用环境变量覆盖）。
 
-- 事件流通过 WebSocket `/api/events.mux` 与 `/api/events.host` 订阅。
-- 派活通过 `POST /api/session.prompt`。
+- **鉴权**：新版 dsh 需要浏览器会话鉴权。桌宠会自动读取 `$DSH_HOME/.credentials.yaml`（默认 `~/.dsh/.credentials.yaml`）里 `client-connection/browser-session` 的签名密钥，自行签发 `dsh-auth-<authority-hash>` Cookie，无需手动配置。
+- **RPC**：`POST /api/<domain>/<method>`，payload 为 `{ args: { _request: {...} } }`。
+- **事件流**：WebSocket `/api/remote.mux`，打开 `$events` 逻辑流。
 - 桌宠是 harness 当前窗口的**遥控输入**：每次派活都自动选「最近有人发消息的会话」（即你正在用的那个窗口），所以虎鲸里发的消息会出现在 harness 当前打开的对应窗口里，并跟着你切换窗口走。回复既显示在虎鲸气泡里，也显示在对应窗口里。
+
+> 兼容性：`gateway.js` 对旧版协议（`/api/session.list`、`/api/events.mux`、无鉴权）做了降级尝试，因此新旧 dsh 都能连。
 
 未连接 harness 时，换肤 / 播放器 / 互动等本地功能仍可正常使用，仅派活会提示「未连接」。
 
@@ -47,13 +50,23 @@ npm start
 桌宠不依赖安装位置，解压到任意目录、`npm install && npm start` 即可运行：
 
 - 所有资源用相对路径加载，窗口 / 面板 / vendor 脚本都随应用目录走。
-- 连接地址通过 `WHALE_PET_URL` 覆盖，适配不同端口 / 主机的 harness。
+- harness 地址与数据目录分别通过 `WHALE_PET_URL`、`DSH_HOME` 覆盖，适配不同端口 / 主机 / 多套 dsh 数据目录。
+
+### 连接自检
+
+若派活提示「未连接到 harness」，按顺序检查：
+
+1. dsh 是否在运行（任务管理器里应有 `DeepSeek Harness.exe`）。
+2. 端口是否匹配：默认连 19387，用 `Get-NetTCPConnection -LocalPort 19387 -State Listen` 确认。
+3. 密钥文件是否存在且可读：`~/.dsh/.credentials.yaml`。
+4. 自定义端口时设置环境变量：`$env:WHALE_PET_URL="http://127.0.0.1:<port>"`。
 
 ## 目录结构
 
 ```
 whale-pet/
-├── main.js            # Electron 主进程：窗口 / 拖动 / 右键菜单 / gateway 客户端 / 面板窗口
+├── main.js            # Electron 主进程：窗口 / 拖动 / 右键菜单 / 面板窗口
+├── gateway.js         # dsh harness 客户端：鉴权 Cookie / RPC / WebSocket 事件流
 ├── preload.js         # contextBridge：拖动、gateway、皮肤、播放器桥
 ├── package.json
 ├── LICENSE            # MIT（含虎鲸形象品牌声明）
@@ -68,7 +81,7 @@ whale-pet/
 ## 注意事项
 
 - Windows 显示缩放（125% / 150%）下拖动窗口存在 DIP↔物理像素取整漂移的历史 bug，主进程已用 `getBounds() + setBounds()` 锁定窗口尺寸修复。
-- 事件流协议已从 SSE 迁移到 WebSocket；若 dsh 版本较旧仍走 SSE，需相应调整 `main.js` 的 `openWS`。
+- harness 事件流协议历经三代：SSE → `/api/events.mux` WebSocket → `/api/remote.mux` WebSocket（当前）。`gateway.js` 已适配当前版本并保留旧版降级路径。
 - 首次运行若 electron 包装文件（`cli.js`/`index.js`/`path.txt`）缺失，重新执行 `npm install` 即可。
 
 ## 许可
