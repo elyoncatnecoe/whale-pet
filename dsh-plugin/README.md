@@ -124,6 +124,12 @@ A：插件是在 DSH 启动时加载的，必须**完全重启** DSH（托盘图
 **Q：怎么确认插件真的加载了？**
 A：可以在 DSH 里对 Agent 说「用 cordis_inspect_list 看看 whale-pet」，或检查 `~/.dsh/profiles/desktop/cordis.patch.yml` 末尾是否有 `- id: whale-pet` 条目。
 
+**Q：在虎鲸里派活，消息跑到了别的窗口？**
+A：这是**已知限制**。harness 没有「哪个窗口正在被查看」的服务端信号，桌宠只能用「最近有消息的会话」近似。所以你**刚开一个还没发过消息的空白窗口**就用虎鲸派活时，它会落到上一个窗口。
+
+- **规避**：先在该窗口发一句话（哪怕只发个「喵」），之后虎鲸就会跟着它走。
+- **想改**：见 [主 README 的「已知限制」](../README.md#️-已知限制新开的空白窗口) 一节，`main.js` 的 `pickCurrentSession()` 里去掉 `!it.blank` 过滤即可，按自己习惯调。
+
 **Q：点「启动」提示找不到桌宠目录？**
 A：设置环境变量指向你的 whale-pet 目录：`$env:WHALE_PET_DIR="F:\你的路径\whale-pet"`，然后重启 DSH。
 

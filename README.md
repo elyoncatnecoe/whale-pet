@@ -52,11 +52,30 @@ node dsh-plugin/scripts/install.mjs   # 自动打包桌宠 + 装依赖 + 挂载�
 桌宠通过 `WHALE_PET_URL` 连接 harness，**默认 `http://127.0.0.1:19387`**（新版 dsh 桌面版端口；旧版 dsh web 用 3080，可用环境变量覆盖）。
 
 - **鉴权**：新版 dsh 需要浏览器会话鉴权。桌宠会自动读取 `$DSH_HOME/.credentials.yaml`（默认 `~/.dsh/.credentials.yaml`）里 `client-connection/browser-session` 的签名密钥，自行签发 `dsh-auth-<authority-hash>` Cookie，无需手动配置。
-- **RPC**：`POST /api/<domain>/<method>`，payload 为 `{ args: { _request: {...} } }`。
+- **RPC**：`POST /api/<domain>/<method>`，payload 形如 `{ args: { <包装字段>: {...} } }`。注意这个**包装字段名随方法而异**（`session/list` 用 `_request`，`session/prompt` 用 `request`），`gateway.js` 会按候选名依次尝试；`prompt` 类方法还要求必填 `requestId`（自动补 UUID）。
 - **事件流**：WebSocket `/api/remote.mux`，打开 `$events` 逻辑流。
 - 桌宠是 harness 当前窗口的**遥控输入**：每次派活都自动选「最近有人发消息的会话」（即你正在用的那个窗口），所以虎鲸里发的消息会出现在 harness 当前打开的对应窗口里，并跟着你切换窗口走。回复既显示在虎鲸气泡里，也显示在对应窗口里。
 
 > 兼容性：`gateway.js` 对旧版协议（`/api/session.list`、`/api/events.mux`、无鉴权）做了降级尝试，因此新旧 dsh 都能连。
+
+### ⚠️ 已知限制：新开的空白窗口
+
+harness **没有**「哪个窗口正在被查看」的服务端信号，桌宠只能用「最近有消息的会话」来近似「当前窗口」。因此：
+
+> **刚开一个全新的窗口、还没在里面发过任何消息就用虎鲸派活 → 消息会落到上一个窗口。**
+
+因为空白会话的 `blank: true`，选择逻辑会跳过它（当初这么设计是为了避免落进 DSH 自动创建的空壳会话）。
+
+**规避方法**：先用虎鲸在目标窗口发一句话（哪怕只发个「喵」），该窗口就不再是 blank，之后虎鲸就会跟着它走。
+
+**想改的话**，在 `main.js` 的 `pickCurrentSession()`：
+
+```js
+const live = items && items.filter((it) => !it.blank)   // ← 去掉 !it.blank 就会连空白窗口一起参与排序
+```
+
+更讲究的做法是区分「用户新开的窗口」和「DSH 自建的空壳会话」（后者多为无标题、`cwd` 为空），只排除后者。这块没有标准答案，按自己的使用习惯调即可。
+
 
 未连接 harness 时，换肤 / 播放器 / 互动等本地功能仍可正常使用，仅派活会提示「未连接」。
 
