@@ -62,6 +62,47 @@ function readAuthSecret() {
   return undefined
 }
 
+// ---------- 读取 DeepSeek API Key ----------
+// 同一个 .credentials.yaml 的 refs 段落里存着 DEEPSEEK_API_KEY，用于查询账户余额。
+function readDeepSeekKey() {
+  const file = path.join(dshHome(), '.credentials.yaml')
+  let text
+  try {
+    text = fs.readFileSync(file, 'utf8')
+  } catch {
+    return undefined
+  }
+  const m = /^\s*DEEPSEEK_API_KEY:\s*(.+?)\s*$/m.exec(text)
+  if (!m) return undefined
+  return m[1].replace(/^["']|["']$/g, '')
+}
+
+/**
+ * 查询 DeepSeek 账户余额。
+ * 官方接口：GET https://api.deepseek.com/user/balance
+ * @param {string} [apiKey] - 省略时自动从 .credentials.yaml 读取
+ * @returns {Promise<{ available: boolean, currency: string, total: number, granted: number, toppedUp: number, raw: object }>}
+ */
+async function fetchBalance(apiKey) {
+  const key = apiKey || readDeepSeekKey()
+  if (!key) throw new Error('未找到 DEEPSEEK_API_KEY（请检查 ~/.dsh/.credentials.yaml）')
+  const res = await fetch('https://api.deepseek.com/user/balance', {
+    headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+  })
+  if (res.status === 401) throw new Error('API Key 无效或已失效')
+  if (!res.ok) throw new Error(`余额接口 HTTP ${res.status}`)
+  const body = await res.json()
+  const info = (body.balance_infos && body.balance_infos[0]) || {}
+  return {
+    available: body.is_available === true,
+    currency: info.currency || 'CNY',
+    total: Number(info.total_balance ?? 0),
+    granted: Number(info.granted_balance ?? 0),
+    toppedUp: Number(info.topped_up_balance ?? 0),
+    raw: body,
+  }
+}
+
 // ---------- 签发 dsh 浏览器会话 Cookie ----------
 // 与 dsh 的 browser-auth.ts 完全一致：
 //   name  = 'dsh-auth-' + base64url(sha256(authority))
@@ -237,4 +278,4 @@ class Gateway {
   }
 }
 
-module.exports = { Gateway, readAuthSecret, signCookie, dshHome }
+module.exports = { Gateway, readAuthSecret, readDeepSeekKey, fetchBalance, signCookie, dshHome }

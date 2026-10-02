@@ -41,6 +41,10 @@ body{background:#141a2c;color:#fff;font-family:system-ui,"PingFang SC","Microsof
   <h3>🎵 播放器</h3>
   <p>右键菜单 → 播放器：导入本地音频，虎鲸会随节拍打点、偶尔转圈、头顶冒音符。</p>
 
+  <h3>💰 查询余额</h3>
+  <p>右键菜单 → 查询余额：虎鲸会读取 <code>~/.dsh/.credentials.yaml</code> 里的 DeepSeek API Key，向官方接口查询账户余额并播报。</p>
+  <p>余额低于 ¥1 时会额外提醒充值；查询结果会显示总余额与赠金。</p>
+
   <h3>💬 派活</h3>
   <p>单击鲸鱼 → 输入一句话，虎鲸会把它派给 dsh harness 并流式回显结果。</p>
   <p>消息会发送到 <b>harness 当前打开的窗口</b>（即最近在聊的那个会话），切窗口时自动跟随。需先启动 dsh；默认连接 <code>http://127.0.0.1:19387</code>，可用环境变量 <code>WHALE_PET_URL</code> 覆盖。</p>

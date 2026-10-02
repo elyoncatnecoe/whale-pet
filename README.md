@@ -11,6 +11,7 @@
 - 🎵 **音乐播放器**：导入本地音频，Web Audio 频谱分析，虎鲸随节拍打点、转圈、冒音符。
 - 🎚 **跳舞强度**：关闭 / 低 / 中 / 高 四档可调。
 - 🐟 **互动**：投喂（小鱼游入）、爱心、睡眠（闭眼 + 💤）。
+- 💰 **余额查询**：右键菜单一键查询 DeepSeek 账户余额，余额偏低自动提醒。
 - 💬 **派活**：连接 dsh harness，输入任务并流式回显结果。
 - 🖱️ **窗口**：透明无框置顶、左键拖动移动、右键旋转视角、右键菜单。
 
@@ -31,6 +32,7 @@ npm start
 | 左键单击 | 派活输入 + 互动泡泡 |
 | 右键单击 | 菜单 |
 | 右键拖动 | 旋转视角 |
+| 菜单 → 查询余额 | 查询 DeepSeek 账户余额 |
 
 ## 与 dsh harness 的连接
 
@@ -60,6 +62,14 @@ npm start
 2. 端口是否匹配：默认连 19387，用 `Get-NetTCPConnection -LocalPort 19387 -State Listen` 确认。
 3. 密钥文件是否存在且可读：`~/.dsh/.credentials.yaml`。
 4. 自定义端口时设置环境变量：`$env:WHALE_PET_URL="http://127.0.0.1:<port>"`。
+
+## 余额查询
+
+右键菜单 → **查询余额**，虎鲸会播报 DeepSeek 账户余额。
+
+- 数据来源：[DeepSeek 官方 `GET /user/balance`](https://api-docs.deepseek.com/zh-cn/api/get-user-balance/)。
+- API Key 自动从 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY` 读取，无需额外配置。
+- 显示总余额、赠金；余额低于 ¥1 时附加提醒，账户不可用时醒目告警。
 
 ## 目录结构
 

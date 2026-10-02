@@ -1244,6 +1244,22 @@
                     window.Pet.say('出错：' + data.error, 6000);
                 }
             });
+            // ---- 余额查询结果播报 ----
+            if (bridge.onBalance) {
+                bridge.onBalance((data) => {
+                    if (!data) return;
+                    if (data.kind === 'loading') {
+                        window.Pet.say('💰 查余额中…', 0);
+                    } else if (data.kind === 'ok') {
+                        window.Pet.say(data.text, 8000);
+                        if (window.__petHappy) window.__petHappy();
+                        playSound(data.data && data.data.available ? 'heart' : 'sleep');
+                    } else {
+                        window.Pet.say(data.text || '余额查询失败', 6000);
+                        playSound('sleep');
+                    }
+                });
+            }
             // ---- 单击互动：说话 + 弹出派活输入框 ----
             let input = null;
             let streamBuf = ''; // 派活后的流式回复缓冲（P3）

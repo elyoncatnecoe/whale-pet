@@ -34,6 +34,13 @@ contextBridge.exposeInMainWorld('petBridge', {
   onReply(cb) {
     ipcRenderer.on('pet:reply', (_e, data) => cb(data))
   },
+  // 余额查询结果：{ kind: 'loading' | 'ok' | 'error', text?, data? }
+  onBalance(cb) {
+    ipcRenderer.on('pet:balance', (_e, data) => cb(data))
+  },
+  queryBalance() {
+    ipcRenderer.send('pet:query-balance')
+  },
   // 流式回复：{ kind: 'chunk' | 'message' | 'done', text? }
   onStream(cb) {
     ipcRenderer.on('pet:stream', (_e, data) => cb(data))

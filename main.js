@@ -4,7 +4,7 @@
 //   2. 作为 harness gateway 的第二客户端：订阅事件流、派活、驱动情绪状态机
 const { app, BrowserWindow, ipcMain, Menu } = require('electron')
 const path = require('node:path')
-const { Gateway } = require('./gateway.js')
+const { Gateway, fetchBalance } = require('./gateway.js')
 
 const WINDOW_WIDTH = 420
 const WINDOW_HEIGHT = 400
@@ -96,6 +96,7 @@ ipcMain.on('pet:context-menu', (_event, cx, cy) => {
       })),
     },
     { label: '🎵 播放器', click: () => openPlayer() },
+    { label: '💰 查询余额', click: () => { queryBalance() } },
     { label: '📖 帮助', click: () => openHelpPanel() },
     { type: 'separator' },
     { label: '🗕 最小化', click: () => { if (win) win.minimize() } },
@@ -103,6 +104,34 @@ ipcMain.on('pet:context-menu', (_event, cx, cy) => {
   ]
   Menu.buildFromTemplate(template).popup({ window: win, x: Math.round(cx), y: Math.round(cy) })
 })
+
+// ==================== 余额查询 ====================
+// 走 DeepSeek 官方 /user/balance；key 自动从 ~/.dsh/.credentials.yaml 读取。
+// 结果推给渲染进程，由虎鲸气泡播报。
+let balanceBusy = false
+
+async function queryBalance() {
+  if (!win) return
+  if (balanceBusy) return
+  balanceBusy = true
+  if (win) win.webContents.send('pet:balance', { kind: 'loading' })
+  try {
+    const b = await fetchBalance()
+    const symbol = b.currency === 'USD' ? '$' : '¥'
+    const total = b.total.toFixed(2)
+    let text = `💰 余额 ${symbol}${total}`
+    if (b.granted > 0) text += `（赠金 ${symbol}${b.granted.toFixed(2)}）`
+    if (!b.available) text = `⚠️ 余额不足，API 已不可用：${symbol}${total}`
+    else if (b.total < 1) text += '　⚡ 快没钱啦，记得充值'
+    if (win) win.webContents.send('pet:balance', { kind: 'ok', text, data: b })
+  } catch (err) {
+    if (win) win.webContents.send('pet:balance', { kind: 'error', text: `余额查询失败：${err.message}` })
+  } finally {
+    balanceBusy = false
+  }
+}
+
+ipcMain.on('pet:query-balance', () => { queryBalance() })
 
 // ==================== 播放器窗口 ====================
 let playerWin = null
