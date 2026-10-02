@@ -48,7 +48,7 @@ function resolveElectron(petDir) {
 }
 
 /** 启动桌宠。 */
-function startPet() {
+async function startPet() {
   if (isRunning()) return { ok: true, already: true }
   const petDir = resolvePetDir()
   if (!petDir) {
@@ -61,16 +61,25 @@ function startPet() {
     return { ok: false, error: state.lastError }
   }
   try {
+    // 关键：剥掉 ELECTRON_RUN_AS_NODE。DSH 宿主可能带着这个变量，
+    // 它会让 electron.exe 退化成纯 Node 进程，导致 main.js 拿不到 ipcMain 而秒退。
+    const env = { ...process.env }
+    delete env.ELECTRON_RUN_AS_NODE
     const child = spawn(electron, [petDir], {
       cwd: petDir,
       stdio: 'ignore',
-      env: { ...process.env },
+      env,
     })
     child.on('exit', () => { state.child = null })
     child.on('error', (err) => { state.lastError = err?.message ?? String(err); state.child = null })
     state.child = child
     state.startedAt = Date.now()
     state.lastError = undefined
+    // 等一小会儿确认进程没秒退，把真实原因带回给界面。
+    await new Promise((r) => setTimeout(r, 1200))
+    if (!isRunning()) {
+      return { ok: false, error: state.lastError || '桌宠启动后立即退出，请检查依赖是否完整（在 pet 目录执行 npm install）' }
+    }
     return { ok: true }
   } catch (err) {
     state.lastError = err?.message ?? String(err)
@@ -159,7 +168,6 @@ async function handleRpc(req, res) {
 
 /** 注册路由与围栏。 */
 function mountRoute(ctx) {
-  const connection = ctx.get('connection')
   const webServer = ctx.get('webServer')
   if (!webServer) return () => {}
 
@@ -167,14 +175,20 @@ function mountRoute(ctx) {
     kind: 'exact',
     path: ROUTE,
     handler: async (req, res) => {
-      // 复用 DSH 的信任围栏 + 浏览器鉴权：非本机/未登录一律挡掉。
+      // 每次请求都实时取 connection（服务可能晚于本插件就绪）
+      const connection = ctx.root?.get?.('connection') ?? ctx.get('connection')
+      let rejection
       if (connection && typeof connection.requestRejection === 'function') {
-        const rejection = connection.requestRejection(req)
-        if (rejection !== undefined) {
-          res.writeHead(rejection, { 'content-type': 'text/plain; charset=utf-8' })
-          res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
-          return
-        }
+        try { rejection = connection.requestRejection(req) } catch (e) { rejection = undefined }
+      } else {
+        // 拿不到围栏服务时，退化为「无 cookie 一律拒绝」，绝不裸奔
+        const cookie = req.headers && req.headers.cookie
+        rejection = cookie ? undefined : 401
+      }
+      if (rejection !== undefined) {
+        res.writeHead(rejection, { 'content-type': 'text/plain; charset=utf-8' })
+        res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
+        return
       }
       await handleRpc(req, res)
     },
@@ -182,9 +196,8 @@ function mountRoute(ctx) {
   return () => unregister()
 }
 
-/** Host 插件入口。 */
 export function apply(ctx) {
-  ctx.inject(['webServer'], (webCtx) => {
+  ctx.inject(['webServer', 'connection'], (webCtx) => {
     webCtx.effect(() => mountRoute(webCtx), 'whale-pet: rpc route')
   })
   // 插件卸载时收掉桌宠进程，不留孤儿。
@@ -192,4 +205,4 @@ export function apply(ctx) {
 }
 
 export const name = 'whale-pet'
-export const inject = ['webServer']
+export const inject = ['webServer', 'connection']

@@ -56,15 +56,18 @@ if (pkg.dependencies[PKG_NAME] === spec) {
 }
 
 // 5. 在 cordis.patch.yml 里加挂载记录
+// 注意：新增一行必须用 `- insert:` 包裹；裸 `- id:` 只会去「覆盖」已有行，
+// 对不存在的 id 会报 patch: entry "..." not found。
 const patchPath = join(PROFILE, 'cordis.patch.yml')
-let patch = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : '[]\n'
+let patch = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
 if (patch.includes(`id: ${ENTRY_ID}`)) {
   log('✅ 挂载记录已存在，跳过')
 } else {
-  if (!patch.endsWith('\n')) patch += '\n'
-  patch += `\n- id: ${ENTRY_ID}\n  name: "${PKG_NAME}"\n`
+  if (patch.trim() === '' || patch.trim() === '[]') patch = ''
+  if (patch !== '' && !patch.endsWith('\n')) patch += '\n'
+  patch += `\n- insert:\n    - id: ${ENTRY_ID}\n      name: "${PKG_NAME}"\n`
   writeFileSync(patchPath, patch, 'utf8')
-  log('✅ 已添加插件挂载记录')
+  log('✅ 已添加插件挂载记录（insert 语法）')
 }
 
 // 6. pnpm install 把插件链接进 profile
