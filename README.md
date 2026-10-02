@@ -54,8 +54,7 @@ whale-pet/
 ├── main.js            # Electron 主进程：窗口 / 拖动 / 右键菜单 / gateway 客户端 / 面板窗口
 ├── preload.js         # contextBridge：拖动、gateway、皮肤、播放器桥
 ├── package.json
-├── LICENSE            # 源代码许可（MIT）
-├── LICENSE-docs       # 文档与美术素材许可（CC BY 4.0）
+├── LICENSE            # CC BY-NC 4.0（署名—非商业性使用）
 └── renderer/
     ├── pet.html       # 主窗口：Three.js 鲸鱼 + 互动 + 情绪/跳舞动画
     ├── player.html    # 音乐播放器窗口
@@ -72,13 +71,12 @@ whale-pet/
 
 ## 许可
 
-本项目采用**双许可**：
+本项目采用 **[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.zh-Hans)**（署名—非商业性使用 4.0 国际）许可，详见 [LICENSE](./LICENSE)。
 
-| 范围 | 许可 | 文件 |
-| --- | --- | --- |
-| 源代码（`main.js`、`preload.js`、`renderer/*.html` 的逻辑部分等） | **MIT** | [LICENSE](./LICENSE) |
-| 文档与美术素材（README、内置帮助文案、虎鲸 3D 模型与配色、界面视觉设计） | **CC BY 4.0** | [LICENSE-docs](./LICENSE-docs) |
+- ✅ 你可以自由地**使用、修改、分享**本项目（包括修改后发布）
+- ❌ **不得用于商业目的**：不可销售、不可整合进商业产品或付费服务、不可用于任何营利场景
+- 📝 需保留署名（Copyright (c) 2026 elyoncatnecoe）并说明是否作出修改
 
-第三方依赖保留其原有许可：`renderer/vendor/` 下的 Three.js 与 OrbitControls 版权归 Three.js Authors（MIT），Electron 与 `ws` 遵循各自的许可。
+第三方依赖保留其原有许可，不受本项目许可影响：`renderer/vendor/` 下的 Three.js 与 OrbitControls 版权归 Three.js Authors（MIT），Electron 与 `ws` 遵循各自的许可。
 
 Copyright (c) 2026 elyoncatnecoe
