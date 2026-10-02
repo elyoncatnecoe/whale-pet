@@ -25,19 +25,34 @@ function isRunning() {
   return state.child !== null && state.child.exitCode === null && !state.child.killed
 }
 
-/** 解析桌宠目录：环境变量 > 随插件分发的 pet/ > 源码仓库同级。 */
-function resolvePetDir() {
-  const fromEnv = process.env.WHALE_PET_DIR
-  if (fromEnv && existsSync(join(fromEnv, 'main.js'))) return fromEnv
-  const bundled = join(PLUGIN_DIR, '..', 'pet')
-  if (existsSync(join(bundled, 'main.js'))) return bundled
-  const sibling = join(PLUGIN_DIR, '..', '..')
-  if (existsSync(join(sibling, 'main.js'))) return sibling
-  return undefined
+/**
+ * 候选桌宠目录，按优先级排列：
+ *   1. WHALE_PET_DIR 环境变量（用户显式指定）
+ *   2. 随插件分发的 pet/
+ *   3. 仓库根目录（开发时插件就在仓库里，源码那份依赖通常已装好）
+ * 只收录真正存在 main.js 的目录。
+ * @returns {string[]} 去重后的候选绝对路径
+ */
+function petDirCandidates() {
+  const list = []
+  if (process.env.WHALE_PET_DIR) list.push(process.env.WHALE_PET_DIR)
+  list.push(join(PLUGIN_DIR, '..', 'pet'))
+  list.push(join(PLUGIN_DIR, '..', '..'))
+  const seen = new Set()
+  return list.filter((p) => {
+    if (seen.has(p)) return false
+    seen.add(p)
+    return existsSync(join(p, 'main.js'))
+  })
 }
 
-/** 定位 electron 可执行文件。 */
+/**
+ * 定位 electron 可执行文件。
+ * 桌宠要跑起来必须能找到 electron，所以解析目录时以「哪里装好了依赖」为准，
+ * 而不是单纯看 main.js 在不在。
+ */
 function resolveElectron(petDir) {
+  if (!petDir) return undefined
   const exe = process.platform === 'win32' ? 'electron.exe' : 'electron'
   const candidates = [
     join(petDir, 'node_modules', 'electron', 'dist', exe),
@@ -47,17 +62,32 @@ function resolveElectron(petDir) {
   return undefined
 }
 
+/**
+ * 选出真正可用的桌宠目录：优先能跑起来的（依赖齐全）。
+ * 全都没依赖时退回第一个候选，好把「请先 npm install」的原话报给用户。
+ * @returns {{ dir: string|undefined, electron: string|undefined, candidates: string[] }}
+ */
+function resolvePet() {
+  const candidates = petDirCandidates()
+  for (const dir of candidates) {
+    const electron = resolveElectron(dir)
+    if (electron) return { dir, electron, candidates }
+  }
+  return { dir: candidates[0], electron: undefined, candidates }
+}
+
 /** 启动桌宠。 */
 async function startPet() {
   if (isRunning()) return { ok: true, already: true }
-  const petDir = resolvePetDir()
+  const { dir: petDir, electron, candidates } = resolvePet()
   if (!petDir) {
     state.lastError = '找不到桌宠目录，请设置环境变量 WHALE_PET_DIR 指向 whale-pet 项目目录'
     return { ok: false, error: state.lastError }
   }
-  const electron = resolveElectron(petDir)
   if (!electron) {
-    state.lastError = `桌宠依赖未安装：请先在 ${petDir} 执行 npm install`
+    // 把所有候选都告诉用户，方便他挑一个装依赖 / 或设 WHALE_PET_DIR
+    const tried = candidates.length > 0 ? candidates.join(' 、 ') : petDir
+    state.lastError = `桌宠依赖未安装。请在下面任一目录执行 npm install：${tried}`
     return { ok: false, error: state.lastError }
   }
   try {
@@ -134,7 +164,18 @@ async function queryBalance() {
 
 /** 方法表。 */
 const METHODS = {
-  status: async () => ({ ok: true, running: isRunning(), startedAt: state.startedAt, error: state.lastError, petDir: resolvePetDir() }),
+  status: async () => {
+    const { dir, electron } = resolvePet()
+    return {
+      ok: true,
+      running: isRunning(),
+      startedAt: state.startedAt,
+      error: state.lastError,
+      petDir: dir,
+      // 让界面能区分「找不到目录」和「目录在但依赖没装」
+      ready: Boolean(dir && electron),
+    }
+  },
   start: async () => startPet(),
   stop: async () => stopPet(),
   balance: async () => queryBalance(),
