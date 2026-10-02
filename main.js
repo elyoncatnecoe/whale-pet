@@ -15,6 +15,29 @@ const GATEWAY_URL = process.env.WHALE_PET_URL || 'http://127.0.0.1:19387'
 let win = null
 let dragStartBounds = null
 
+// 退出中标记：窗口开始关闭后，网关/WebSocket 的回调可能仍在触发，
+// 此时绝不能再往渲染进程发消息（否则 main process 抛 "Object has been destroyed" 并弹框）。
+let quitting = false
+
+/**
+ * 安全地往主窗口发消息。
+ * 窗口对象销毁后依然非 null，所以只判断 `if (win)` 不够——必须查 isDestroyed()。
+ * @returns {boolean} 是否真的发出去了
+ */
+function sendToWin(channel, payload) {
+  if (quitting) return false
+  if (!win || win.isDestroyed()) return false
+  const wc = win.webContents
+  if (!wc || wc.isDestroyed()) return false
+  try {
+    wc.send(channel, payload)
+    return true
+  } catch {
+    // 窗口正在销毁的竞态窗口期：静默忽略，不打扰用户
+    return false
+  }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: WINDOW_WIDTH,
@@ -40,7 +63,7 @@ function createWindow() {
 //       窗口变大后相机距离不变，虎鲸跟着变大（放大），误差持续累积最终卡死/闪退。
 // 修法：拖动开始缓存 getBounds()，之后一律用 "起点 + 总位移" 的 setBounds() 并锁死宽高。
 ipcMain.on('drag-start', () => {
-  if (!win) return
+  if (!win || win.isDestroyed()) return
   dragStartBounds = win.getBounds()
 })
 
@@ -82,7 +105,7 @@ ipcMain.on('pet:context-menu', (_event, cx, cy) => {
       submenu: [
         ...SKINS.map((s) => ({
           label: s.label,
-          click: () => { if (win) win.webContents.send('pet:set-skin', s.id) },
+          click: () => sendToWin('pet:set-skin', s.id),
         })),
         { type: 'separator' },
         { label: '🎨 自定义配色…', click: () => openColorPanel() },
@@ -92,14 +115,14 @@ ipcMain.on('pet:context-menu', (_event, cx, cy) => {
       label: '🎚 跳舞强度',
       submenu: DANCE_LEVELS.map((d) => ({
         label: d.label,
-        click: () => { if (win) win.webContents.send('pet:set-dance-freq', d.id) },
+        click: () => sendToWin('pet:set-dance-freq', d.id),
       })),
     },
     { label: '🎵 播放器', click: () => openPlayer() },
     { label: '💰 查询余额', click: () => { queryBalance() } },
     { label: '📖 帮助', click: () => openHelpPanel() },
     { type: 'separator' },
-    { label: '🗕 最小化', click: () => { if (win) win.minimize() } },
+    { label: '🗕 最小化', click: () => { if (win && !win.isDestroyed()) win.minimize() } },
     { label: '✕ 退出', click: () => app.quit() },
   ]
   Menu.buildFromTemplate(template).popup({ window: win, x: Math.round(cx), y: Math.round(cy) })
@@ -114,7 +137,7 @@ async function queryBalance() {
   if (!win) return
   if (balanceBusy) return
   balanceBusy = true
-  if (win) win.webContents.send('pet:balance', { kind: 'loading' })
+  sendToWin('pet:balance', { kind: 'loading' })
   try {
     const b = await fetchBalance()
     const symbol = b.currency === 'USD' ? '$' : '¥'
@@ -123,9 +146,9 @@ async function queryBalance() {
     if (b.granted > 0) text += `（赠金 ${symbol}${b.granted.toFixed(2)}）`
     if (!b.available) text = `⚠️ 余额不足，API 已不可用：${symbol}${total}`
     else if (b.total < 1) text += '　⚡ 快没钱啦，记得充值'
-    if (win) win.webContents.send('pet:balance', { kind: 'ok', text, data: b })
+    sendToWin('pet:balance', { kind: 'ok', text, data: b })
   } catch (err) {
-    if (win) win.webContents.send('pet:balance', { kind: 'error', text: `余额查询失败：${err.message}` })
+    sendToWin('pet:balance', { kind: 'error', text: `余额查询失败：${err.message}` })
   } finally {
     balanceBusy = false
   }
@@ -169,10 +192,10 @@ ipcMain.on('pet:close-panel', (event) => {
 
 // 播放器频谱/曲名 → 转发给主窗口（驱动虎鲸随节奏跳舞）
 ipcMain.on('pet:audio-freq', (_event, data) => {
-  if (win) win.webContents.send('pet:audio-freq', data)
+  sendToWin('pet:audio-freq', data)
 })
 ipcMain.on('pet:music-comment', (_event, name) => {
-  if (win) win.webContents.send('pet:music-comment', name)
+  sendToWin('pet:music-comment', name)
 })
 
 // ==================== 自定义配色窗口 ====================
@@ -197,7 +220,7 @@ function openColorPanel() {
   colorWin.on('closed', () => { colorWin = null })
 }
 ipcMain.on('pet:set-custom-skin', (_event, data) => {
-  if (win && data && data.dark !== undefined) win.webContents.send('pet:set-custom-skin', data)
+  if (data && data.dark !== undefined) sendToWin('pet:set-custom-skin', data)
 })
 
 // ==================== 帮助窗口 ====================
@@ -238,7 +261,7 @@ function pushMood(next) {
   if (mood === next) return
   mood = next
   lastEventAt = Date.now()
-  if (win) win.webContents.send('pet:mood', next)
+  sendToWin('pet:mood', next)
   for (const cb of moodListeners) cb(next)
 }
 
@@ -320,8 +343,8 @@ function handleSessionEvent(event, watching) {
   switch (event.type) {
     case 'assistant/chunk': {
       const chunk = event.data && event.data.chunk
-      if (watching && chunk && chunk.type === 'text-delta' && chunk.text && win) {
-        win.webContents.send('pet:stream', {
+      if (watching && chunk && chunk.type === 'text-delta' && chunk.text) {
+        sendToWin('pet:stream', {
           kind: 'chunk',
           text: chunk.text,
           turn: event.data && event.data.turn,
@@ -332,18 +355,18 @@ function handleSessionEvent(event, watching) {
       break
     }
     case 'assistant/message': {
-      if (watching && win) {
+      if (watching) {
         const text = ((event.data && event.data.content) || [])
           .filter((b) => b && b.type === 'text' && b.text)
           .map((b) => b.text)
           .join('\n')
-        if (text) win.webContents.send('pet:stream', { kind: 'message', text })
+        if (text) sendToWin('pet:stream', { kind: 'message', text })
       }
       sendMood('ready')
       break
     }
     case 'turn/end': {
-      if (watching && win) win.webContents.send('pet:stream', { kind: 'done' })
+      if (watching) sendToWin('pet:stream', { kind: 'done' })
       sendMood('ready')
       break
     }
@@ -358,18 +381,22 @@ function handleSessionEvent(event, watching) {
 }
 
 function connectGateway() {
-  if (!win) return
+  if (quitting) return
   gateway = new Gateway(GATEWAY_URL, {
     onStatus: (isConnected, url) => {
       connected = isConnected
-      if (win) win.webContents.send('pet:connection', { connected: isConnected, url })
-      if (isConnected && !sessionId) {
-        pickCurrentSession().then((sid) => { sessionId = sid })
+      // 窗口可能已销毁（用户在退出时网关恰好断开），sendToWin 会安全跳过
+      sendToWin('pet:connection', { connected: isConnected, url })
+      if (isConnected && !sessionId && !quitting) {
+        pickCurrentSession().then((sid) => { sessionId = sid }).catch(() => {})
       }
     },
-    onEvent: (value) => handleFrame(value),
+    onEvent: (value) => {
+      if (quitting) return
+      handleFrame(value)
+    },
     onLog: (message, extra) => {
-      if (win) win.webContents.send('pet:log', { where: 'gateway', message, extra })
+      sendToWin('pet:log', { where: 'gateway', message, extra })
     },
   })
   gateway.connect()
@@ -397,7 +424,29 @@ app.whenReady().then(() => {
   createWindow()
   win.webContents.on('did-finish-load', () => connectGateway())
 })
+
+// ---- 退出清理 ----
+// 关键顺序：先立 quitting 标记 → 再关网关 → 最后退出。
+// 否则 WebSocket 的 close 回调会在窗口销毁之后才跑，触发
+// "Object has been destroyed"（main process 未捕获异常弹框）。
+function shutdown() {
+  if (quitting) return
+  quitting = true
+  try { if (gateway) gateway.close() } catch { /* 已关闭 */ }
+}
+
+// 用户关掉主窗口（例如右键→退出、或系统关闭）时走这里
+app.on('before-quit', shutdown)
+
+// 主窗口关闭：标记退出中，避免后续任何 send
 app.on('window-all-closed', () => {
-  if (gateway) gateway.close()
+  shutdown()
   app.quit()
+})
+
+// 兜底：任何漏网的异常都不该弹「JavaScript error occurred」框打扰用户
+process.on('uncaughtException', (err) => {
+  // 窗口销毁竞态导致的发送失败属于预期内噪声，静默忽略
+  if (err && /Object has been destroyed/i.test(String(err.message))) return
+  console.error('[whale-pet] uncaughtException:', err)
 })
