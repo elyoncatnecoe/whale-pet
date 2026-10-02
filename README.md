@@ -54,6 +54,8 @@ whale-pet/
 ├── main.js            # Electron 主进程：窗口 / 拖动 / 右键菜单 / gateway 客户端 / 面板窗口
 ├── preload.js         # contextBridge：拖动、gateway、皮肤、播放器桥
 ├── package.json
+├── LICENSE            # 源代码许可（MIT）
+├── LICENSE-docs       # 文档与美术素材许可（CC BY 4.0）
 └── renderer/
     ├── pet.html       # 主窗口：Three.js 鲸鱼 + 互动 + 情绪/跳舞动画
     ├── player.html    # 音乐播放器窗口
@@ -67,3 +69,16 @@ whale-pet/
 - Windows 显示缩放（125% / 150%）下拖动窗口存在 DIP↔物理像素取整漂移的历史 bug，主进程已用 `getBounds() + setBounds()` 锁定窗口尺寸修复。
 - 事件流协议已从 SSE 迁移到 WebSocket；若 dsh 版本较旧仍走 SSE，需相应调整 `main.js` 的 `openWS`。
 - 首次运行若 electron 包装文件（`cli.js`/`index.js`/`path.txt`）缺失，重新执行 `npm install` 即可。
+
+## 许可
+
+本项目采用**双许可**：
+
+| 范围 | 许可 | 文件 |
+| --- | --- | --- |
+| 源代码（`main.js`、`preload.js`、`renderer/*.html` 的逻辑部分等） | **MIT** | [LICENSE](./LICENSE) |
+| 文档与美术素材（README、内置帮助文案、虎鲸 3D 模型与配色、界面视觉设计） | **CC BY 4.0** | [LICENSE-docs](./LICENSE-docs) |
+
+第三方依赖保留其原有许可：`renderer/vendor/` 下的 Three.js 与 OrbitControls 版权归 Three.js Authors（MIT），Electron 与 `ws` 遵循各自的许可。
+
+Copyright (c) 2026 elyoncatnecoe
