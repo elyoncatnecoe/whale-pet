@@ -24,6 +24,19 @@ npm start
 
 依赖：Electron 31、`ws`（事件流 WebSocket 客户端）。建议 Node ≥ 18。
 
+## 作为 DSH 插件使用（推荐）
+
+不想碰命令行？本仓库附带一个 **DSH 插件**，装好后在 DeepSeek Harness 侧边栏点一下就能启动桌宠，并直接查看余额：
+
+```bash
+git clone https://github.com/elyoncatnecoe/whale-pet.git
+cd whale-pet
+node dsh-plugin/scripts/install.mjs   # 自动打包桌宠 + 装依赖 + 挂载插件
+# 然后完全重启 DeepSeek Harness
+```
+
+重启后侧边栏底部会出现 **🐋 虎鲸桌宠** 按钮。详见 [dsh-plugin/README.md](./dsh-plugin/README.md)。
+
 ## 操作说明
 
 | 操作 | 效果 |
@@ -80,6 +93,10 @@ whale-pet/
 ├── preload.js         # contextBridge：拖动、gateway、皮肤、播放器桥
 ├── package.json
 ├── LICENSE            # MIT（含虎鲸形象品牌声明）
+├── dsh-plugin/        # DSH 插件：在 Harness 侧边栏一键启停桌宠
+│   ├── lib/index.js   #   Host 半边：进程管理 + 余额查询 + 私有 RPC 路由
+│   ├── lib/client.js  #   Client 半边：侧边栏入口面板
+│   └── scripts/       #   打包与安装脚本
 └── renderer/
     ├── pet.html       # 主窗口：Three.js 鲸鱼 + 互动 + 情绪/跳舞动画
     ├── player.html    # 音乐播放器窗口

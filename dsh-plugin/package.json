@@ -1,0 +1,40 @@
+{
+  "name": "dsh-plugin-whale-pet",
+  "version": "0.1.0",
+  "description": "虎鲸桌宠：把 whale-pet 桌面宠物接入 DeepSeek Harness，在侧边栏一键启动/关闭，并显示 API 余额",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "pet"
+  ],
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "whale-pet",
+    "desktop-pet"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elyoncatnecoe/whale-pet.git"
+  }
+}

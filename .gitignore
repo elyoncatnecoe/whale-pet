@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# 插件里打包的桌宠副本：由 scripts/bundle-pet.mjs 生成，不入库（避免和根目录源码重复）
+dsh-plugin/pet/
+
 # accidentally-created tool memory folder
 .workbuddy/
 
