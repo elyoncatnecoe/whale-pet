@@ -31,6 +31,13 @@
 | Client bundle 结构（`__ModuleLoader__.load` + factory + exports）与官方 bundle 逐项一致 | ✅ |
 | Client 半边在模拟加载器中注册到 `sidebar.footer.action` 插槽 | ✅ |
 | 目标插槽在真实 DSH 中存在，注册参数与插槽 catalog 匹配 | ✅ |
+| **在真实 DSH 实例中启动**：插件行进入组合后的 profile 树（`--dump-config` 可见） | ✅ |
+| **在真实 DSH 实例中**：Host 路由受信任围栏保护（无 cookie → 401，跨站 → 403） | ✅ |
+| **在真实 DSH 实例中**：Client bundle 被打进预加载清单并被正确服务（响应体内含插件 id 与插槽名） | ✅ |
+| **在真实 DSH 实例中**：`start` 能真正拉起桌宠，`status` 报告 running，`stop` 干净退出 | ✅ |
+| **在真实 DSH 实例中**：`balance` 返回账户余额 | ✅ |
+
+> 上述「真实 DSH 实例」验证是在独立 profile + 独立端口上完成的（不影响你的桌面端），测完已删除该 profile。
 
 
 ## 安装（三步）
@@ -125,6 +132,18 @@ A：在 `dsh-plugin/pet` 目录执行 `npm install`。
 
 **Q：查余额失败？**
 A：需要 `~/.dsh/.credentials.yaml` 里有 `DEEPSEEK_API_KEY`。在 DSH 的「设置 → 模型」里配好 API Key 即可。
+
+**Q：点「启动」提示「桌宠启动后立即退出」？**
+A：说明 electron 进程拉起后马上退了。最常见原因是 `pet/` 目录下依赖不全——在 `dsh-plugin/pet` 里执行 `npm install` 再试。插件已自动剥离 `ELECTRON_RUN_AS_NODE`（该变量会让 electron 退化成纯 Node 而拿不到 `ipcMain`），所以不必手动处理。
+
+**Q：改了插件源码后不生效？**
+A：profile 里的是**拷贝**而非软链，改完源码需要重新同步：
+
+```bash
+cd ~/.dsh/profiles/desktop
+rm -rf node_modules/dsh-plugin-whale-pet node_modules/.pnpm
+pnpm install
+```
 
 ## 许可
 
