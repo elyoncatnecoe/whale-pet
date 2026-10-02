@@ -2,6 +2,8 @@
 
 一只常驻桌面的透明置顶虎鲸桌宠：用 Three.js 程序化建模、Electron 承载，并作为 dsh harness 的第二客户端订阅事件流、派发任务、驱动情绪状态机。
 
+> 个人非官方爱好者作品，与 DeepSeek 官方无关联。虎鲸形象为 DeepSeek 品牌标识，权利归其所有，详见 [LICENSE](./LICENSE)。
+
 ## 功能特性
 
 - 🐋 **3D 虎鲸**：程序化建模（身体 / 尾鳍 / 背鳍 / 胸鳍 / 眼斑），温和游动动画，带情绪状态机（idle / working / needs-input / ready / blocked）。
@@ -54,7 +56,7 @@ whale-pet/
 ├── main.js            # Electron 主进程：窗口 / 拖动 / 右键菜单 / gateway 客户端 / 面板窗口
 ├── preload.js         # contextBridge：拖动、gateway、皮肤、播放器桥
 ├── package.json
-├── LICENSE            # CC BY-NC 4.0（署名—非商业性使用）
+├── LICENSE            # MIT（含虎鲸形象品牌声明）
 └── renderer/
     ├── pet.html       # 主窗口：Three.js 鲸鱼 + 互动 + 情绪/跳舞动画
     ├── player.html    # 音乐播放器窗口
@@ -71,12 +73,10 @@ whale-pet/
 
 ## 许可
 
-本项目采用 **[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.zh-Hans)**（署名—非商业性使用 4.0 国际）许可，详见 [LICENSE](./LICENSE)。
+源代码采用 **MIT** 许可，详见 [LICENSE](./LICENSE)：你可以自由地使用、修改、分发本项目，只需保留版权声明。
 
-- ✅ 你可以自由地**使用、修改、分享**本项目（包括修改后发布）
-- ❌ **不得用于商业目的**：不可销售、不可整合进商业产品或付费服务、不可用于任何营利场景
-- 📝 需保留署名（Copyright (c) 2026 elyoncatnecoe）并说明是否作出修改
+> ⚠️ **品牌声明**：虎鲸 / 鲸鱼形象是 **DeepSeek** 的品牌标识与商标，权利归 DeepSeek 所有，不在本项目的授权范围内。本项目是**个人非官方的爱好者作品**，与 DeepSeek 官方无关联、未获其背书。请勿暗示官方关系，也请勿将虎鲸形象用于商业或商标性用途。
 
-第三方依赖保留其原有许可，不受本项目许可影响：`renderer/vendor/` 下的 Three.js 与 OrbitControls 版权归 Three.js Authors（MIT），Electron 与 `ws` 遵循各自的许可。
+第三方依赖保留其原有许可：`renderer/vendor/` 下的 Three.js 与 OrbitControls 版权归 Three.js Authors（MIT），Electron 与 `ws` 遵循各自的许可。
 
 Copyright (c) 2026 elyoncatnecoe

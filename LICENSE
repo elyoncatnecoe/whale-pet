@@ -1,52 +1,36 @@
-# 许可协议 / License
-
-**虎鲸桌宠（whale-pet）** 采用 **Creative Commons Attribution-NonCommercial 4.0 International（CC BY-NC 4.0）** 许可。
-
-**Whale Pet (whale-pet)** is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.
+MIT License
 
 Copyright (c) 2026 elyoncatnecoe
 
----
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-## 你可以自由地 / You are free to
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-- **共享** — 在任何媒介或格式中复制和重新分发本项目 / **Share** — copy and redistribute the material in any medium or format
-- **演绎** — 重混、转换、并基于本项目进行创作 / **Adapt** — remix, transform, and build upon the material
-
-许可人不能撤销这些权利，只要你就遵守许可条款。/ The licensor cannot revoke these freedoms as long as you follow the license terms.
-
-## 惟须遵守下列条件 / Under the following terms
-
-- **署名** — 你必须给出适当的署名，提供指向本许可的链接，并说明是否作出了修改。你可以以任何合理的方式这样做，但不得以任何方式暗示许可人认可你或你的使用。/ **Attribution** — You must give appropriate credit, provide a link to the license, and indicate if changes were made.
-
-- **非商业性使用** — **你不得将本项目用于商业目的。** 这意味着不得销售本项目或其修改版本、不得将其整合进商业产品或付费服务、不得用于任何以营利为目的的场景。/ **NonCommercial** — **You may not use the material for commercial purposes.** This means you may not sell the project or modified versions, bundle it into a commercial product or paid service, or use it in any revenue-generating context.
-
-- **不得增加限制** — 你不得适用法律条款或技术措施，从而在法律上限制他人做本许可允许的事情。/ **No additional restrictions** — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
-
-## 适用范围 / Scope
-
-本许可覆盖本仓库的**全部内容**：
-
-This license covers **all contents** of this repository:
-
-- 源代码 / Source code: `main.js`, `preload.js`, `renderer/*.html`
-- 文档 / Documentation: `README.md`, `renderer/help.html`
-- 美术素材与视觉设计 / Artwork and visual design: 程序化构建的虎鲸 3D 模型、配色预设、界面设计 / the procedurally built killer whale 3D model, skin presets, and interface design
-
-## 第三方依赖 / Third-party dependencies
-
-以下依赖保留其原有许可，不受本许可影响：
-
-The following dependencies keep their own licenses and are unaffected:
-
-- `renderer/vendor/three.min.js`、`renderer/vendor/OrbitControls.js` — Three.js Authors（MIT）
-- Electron、`ws` — 遵循各自仓库的许可 / under their respective licenses
-
-## 无担保 / No warranties
-
-本项目按「原样」提供，不附带任何形式的明示或暗示担保。/ The material is provided "as is", without warranties of any kind.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ---
 
-许可全文 / Full legal text: <https://creativecommons.org/licenses/by-nc/4.0/legalcode.zh-Hans>
-人类可读摘要 / Human-readable summary: <https://creativecommons.org/licenses/by-nc/4.0/deed.zh-Hans>
+## 品牌与商标声明 / Trademark Notice
+
+本许可仅覆盖本仓库的**源代码**。虎鲸 / 鲸鱼形象是 **DeepSeek** 的品牌标识与商标，其权利归 DeepSeek 所有，**不在本许可的授权范围内**。
+
+This license covers the **source code** of this repository only. The killer whale / whale imagery is the brand mark and trademark of **DeepSeek**, and all rights to it belong to DeepSeek. It is **not covered by this license**.
+
+- 本项目是**个人非官方的爱好者作品**，与 DeepSeek 官方无任何关联、未获其背书或赞助。
+- This project is an **unofficial, personal fan work**. It is not affiliated with, endorsed by, or sponsored by DeepSeek.
+- 使用本项目时，请勿暗示与 DeepSeek 存在官方关系，也请勿将虎鲸形象用于商业用途或商标性使用。
+- When using this project, do not imply any official relationship with DeepSeek, and do not use the whale imagery commercially or as a trademark.
+
+第三方依赖（Three.js、Electron、`ws`）保留其各自的许可。
