@@ -16,6 +16,23 @@
 
 桌宠本身的能力（换皮肤、跳舞、播放器、派活、音效）全部保留，详见 [主 README](../README.md)。
 
+## 已验证的部分
+
+本插件在开发机上做过以下实测（非推测）：
+
+| 验证项 | 状态 |
+| --- | --- |
+| Host 半边加载与导出（`apply` / `inject` / `name`） | ✅ |
+| 私有路由注册与调用（status / start / stop / balance / 未知方法 404） | ✅ |
+| 余额查询（读 `~/.dsh/.credentials.yaml` → DeepSeek 官方接口） | ✅ |
+| 桌宠进程 spawn / kill 与状态上报 | ✅ |
+| `install.mjs` 写入 profile 依赖与 `cordis.patch.yml` 挂载记录 | ✅ |
+| `pnpm install` 把插件链接进 profile，DSH 可解析 | ✅ |
+| Client bundle 结构（`__ModuleLoader__.load` + factory + exports）与官方 bundle 逐项一致 | ✅ |
+| Client 半边在模拟加载器中注册到 `sidebar.footer.action` 插槽 | ✅ |
+| 目标插槽在真实 DSH 中存在，注册参数与插槽 catalog 匹配 | ✅ |
+
+
 ## 安装（三步）
 
 ### 前置条件
@@ -96,6 +113,9 @@ cd ~/.dsh/profiles/desktop && pnpm install
 
 **Q：侧边栏没出现按钮？**
 A：插件是在 DSH 启动时加载的，必须**完全重启** DSH（托盘图标也要退干净）。另外确认 `pnpm install` 没报错。
+
+**Q：怎么确认插件真的加载了？**
+A：可以在 DSH 里对 Agent 说「用 cordis_inspect_list 看看 whale-pet」，或检查 `~/.dsh/profiles/desktop/cordis.patch.yml` 末尾是否有 `- id: whale-pet` 条目。
 
 **Q：点「启动」提示找不到桌宠目录？**
 A：设置环境变量指向你的 whale-pet 目录：`$env:WHALE_PET_DIR="F:\你的路径\whale-pet"`，然后重启 DSH。
