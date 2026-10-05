@@ -93,6 +93,38 @@ DSH 的 `sidebar.footer.action` 是**列表插槽**，规则是：
 - 已安装 **Node.js ≥ 18** 与 **pnpm**（`npm i -g pnpm`）
 - 已安装 **Git**
 
+## 安装（最简单：填仓库地址）
+
+在 DSH 的**插件栏**里直接填仓库地址即可，不用任何子目录语法：
+
+```
+https://github.com/elyoncatnecoe/whale-pet
+```
+
+或者用命令行：
+
+```bash
+dsh plugin --profile desktop add "github:elyoncatnecoe/whale-pet"
+```
+
+装完**重启 DSH**，侧边栏底部就有 **🐋 虎鲸桌宠** 了。
+点「启动」时若提示依赖缺失，面板上会显示「**安装依赖**」按钮，点一下自动装好（约 180MB 的 electron）。
+
+> 想让安装时自动装依赖（而不是事后点按钮），需要放行构建脚本：
+> 首次安装 pnpm 会报 `ERR_PNPM_IGNORED_BUILDS` 并把该包写进
+> `~/.dsh/profiles/desktop/pnpm-workspace.yaml` 的 `allowBuilds`，
+> 把那行的 `set this to true or false` 改成 `true` 再重跑一次即可。
+
+---
+
+## 安装（传统方式：clone + 脚本）
+
+### 前置条件
+
+- 已安装 **DeepSeek Harness 桌面端**（并至少启动过一次）
+- 已安装 **Node.js ≥ 18** 与 **pnpm**（`npm i -g pnpm`）
+- 已安装 **Git**
+
 ### 步骤
 
 ```bash

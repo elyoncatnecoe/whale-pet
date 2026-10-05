@@ -28,11 +28,20 @@ npm start
 
 不想碰命令行？本仓库附带一个 **DSH 插件**，装好后在 DeepSeek Harness 侧边栏点一下就能启动桌宠，并直接查看余额：
 
+在 DSH 的插件栏直接填仓库地址即可（无需子目录语法）：
+
+```
+https://github.com/elyoncatnecoe/whale-pet
+```
+
+或命令行：`dsh plugin --profile desktop add "github:elyoncatnecoe/whale-pet"`，然后完全重启 DSH。
+
+也可以 clone 后跑脚本：
+
 ```bash
 git clone https://github.com/elyoncatnecoe/whale-pet.git
 cd whale-pet
-node dsh-plugin/scripts/install.mjs   # 自动打包桌宠 + 装依赖 + 挂载插件
-# 然后完全重启 DeepSeek Harness
+node dsh-plugin/scripts/install.mjs
 ```
 
 重启后侧边栏底部会出现 **🐋 虎鲸桌宠** 按钮。详见 [dsh-plugin/README.md](./dsh-plugin/README.md)。
