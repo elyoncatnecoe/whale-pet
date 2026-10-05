@@ -43,5 +43,9 @@ writeFileSync(join(PET, 'package.json'), JSON.stringify({
   devDependencies: { electron: pkg.devDependencies?.electron ?? '^31.7.7' },
 }, null, 2) + '\n', 'utf8')
 
+// pet/ 自身也要 ignore 依赖与锁文件：本目录是要入库的，
+// 不能让 180MB 的 electron 或本地 lockfile 混进版本控制。
+writeFileSync(join(PET, '.gitignore'), 'node_modules/\npackage-lock.json\n', 'utf8')
+
 console.log(`✅ 桌宠已打包到 ${PET}`)
 console.log('   下一步：cd dsh-plugin/pet && npm install')
