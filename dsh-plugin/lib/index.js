@@ -14,8 +14,8 @@ import { fileURLToPath } from 'node:url'
 /** 插件自身目录。 */
 const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url))
 
-/** 路由前缀。 */
-const ROUTE = '/whale-pet/rpc'
+/** 路由前缀。带 -desktop 后缀，避免与其他宠物插件抢同一个路径。 */
+const ROUTE = '/whale-pet-desktop/rpc'
 
 /** 桌宠进程状态。 */
 const state = { child: null, startedAt: 0, lastError: undefined }

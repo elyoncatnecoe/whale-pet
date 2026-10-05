@@ -14,12 +14,14 @@ const PLUGIN = resolve(HERE, '..')
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh')
 const PROFILE = join(DSH_HOME, 'profiles', 'desktop')
 const PET = join(PLUGIN, 'pet')
-const ENTRY_ID = 'whale-pet'
 // 包名必须与 dsh-plugin/package.json 的 name 一致。
 // 注意：npm 上另有一个同用途但不同项目的 dsh-plugin-whale-pet（网页版），
 // 我们刻意带了 -desktop 后缀以避免装错。
 const PKG_NAME = 'dsh-plugin-whale-pet-desktop'
-// 历史遗留：早期版本用过旧名，升级时要把残留依赖清掉
+// Loader 条目 id：带 -desktop 后缀，与其他宠物插件互不占用。
+const ENTRY_ID = 'whale-pet-desktop'
+// 历史遗留：早期版本用过旧名/旧 id，升级时要把残留清掉
+const LEGACY_IDS = ['whale-pet']
 const LEGACY_NAMES = ['dsh-plugin-whale-pet']
 
 function log(msg) { console.log(msg) }
@@ -89,6 +91,21 @@ if (cleaned.length > 0) {
 // 对不存在的 id 会报 patch: entry "..." not found。
 const patchPath = join(PROFILE, 'cordis.patch.yml')
 let patch = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
+
+// 5a. 先摘掉早期版本用过的旧 id 条目（例如裸 `whale-pet`），
+//     否则升级后 profile 里会同时挂着新旧两行，导致重复挂载。
+let removedLegacy = 0
+for (const oldId of LEGACY_IDS) {
+  if (oldId === ENTRY_ID) continue
+  const block = new RegExp(`\\n?\\s*-\\s*id:\\s*${oldId}\\s*\\r?\\n\\s*name:\\s*["'][^"']+["']`, 'g')
+  const next = patch.replace(block, '')
+  if (next !== patch) { patch = next; removedLegacy++ }
+}
+if (removedLegacy > 0) {
+  writeFileSync(patchPath, patch, 'utf8')
+  log(`🧹 已移除 ${removedLegacy} 条旧挂载记录`)
+}
+
 if (patch.includes(`id: ${ENTRY_ID}`)) {
   // id 已存在：可能是老版本留下的、name 还是旧包名，得改过来，
   // 否则 DSH 会照着旧名字去解析模块，装不到我们这份。
@@ -98,9 +115,9 @@ if (patch.includes(`id: ${ENTRY_ID}`)) {
     patch = patch.replace(stale, `$1${PKG_NAME}$2`)
     if (patch !== before) {
       writeFileSync(patchPath, patch, 'utf8')
-      log(`✅ 挂载记录已更新为新包名：${PKG_NAME}`)
+      log(`✅ 挂载记录已更新为：${ENTRY_ID} → ${PKG_NAME}`)
     } else {
-      log('✅ 挂载记录已存在且包名正确，跳过')
+      log('✅ 挂载记录已存在且正确，跳过')
     }
   } else {
     log('✅ 挂载记录已存在，跳过')
@@ -110,7 +127,7 @@ if (patch.includes(`id: ${ENTRY_ID}`)) {
   if (patch !== '' && !patch.endsWith('\n')) patch += '\n'
   patch += `\n- insert:\n    - id: ${ENTRY_ID}\n      name: "${PKG_NAME}"\n`
   writeFileSync(patchPath, patch, 'utf8')
-  log('✅ 已添加插件挂载记录（insert 语法）')
+  log(`✅ 已添加插件挂载记录：${ENTRY_ID}（insert 语法）`)
 }
 
 // 6. pnpm install 把插件链接进 profile

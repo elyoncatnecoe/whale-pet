@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-plugin-whale-pet",
+	id: "dsh-plugin-whale-pet-desktop",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -8,8 +8,12 @@ window.__ModuleLoader__.load({
 		const React = require("react");
 		const slots = require("@deepseek-ai/dsh-client-ui-slots");
 
-		const NS = "whale-pet";
-		const RPC = "/whale-pet/rpc";
+		// 命名空间与插槽 id 都带 -desktop 后缀：DSH 的 sidebar.footer.action 是
+		// 列表插槽，只有「用别人已占用的 id」才会替换；用独有 id 一律新增。
+		// 这样虎鲸桌宠可以和别的宠物插件共存，不会互相顶掉。
+		const NS = "whale-pet-desktop";
+		const RPC = "/whale-pet-desktop/rpc";
+		const SLOT_ID = "whale-pet-desktop";
 
 		/** 调 Host 半边。 */
 		async function callHost(method, args) {
@@ -146,7 +150,9 @@ window.__ModuleLoader__.load({
 		function apply(ctx) {
 			ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
 				name: "sidebar.footer.action",
-				id: "whale-pet",
+				// 独有 id：列表插槽会把它新增在已有序项旁边，而不是替换别人。
+				// 其他宠物插件只要用它们自己的 id，就能与本插件共存。
+				id: SLOT_ID,
 				order: 100,
 				label: () => "🐋 虎鲸桌宠",
 			}, WhalePetButton));
