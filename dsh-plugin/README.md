@@ -64,6 +64,26 @@ DSH 的 `sidebar.footer.action` 是**列表插槽**，规则是：
 
 > 上述「真实 DSH 实例」验证是在独立 profile + 独立端口上完成的（不影响你的桌面端），测完已删除该 profile。
 
+### 从 GitHub 直接安装（实测通过）
+
+完整走了一遍「用户从零安装」的路径：
+
+| 步骤 | 结果 |
+| --- | --- |
+| `dsh plugin add github:elyoncatnecoe/whale-pet#path:dsh-plugin` | ✅ |
+| 插件包自包含（`dsh.bundle` / `cordis.patch.yml` / `pet/` 全在包内） | ✅ |
+| `postinstall` 自动装好桌宠的 electron 依赖 | ✅ |
+| profile 的 `dsh.profile.bundles` 自动追加该插件 | ✅ |
+| `--dump-config` 显示解析后的 `id: whale-pet-desktop` | ✅ |
+| 启动后 `status.ready = true`，`start` 拉起桌宠，`stop` 干净退出 | ✅ |
+| `balance` 返回账户余额 | ✅ |
+
+> ⚠️ **pnpm 会拦截 git 依赖的构建脚本**（安全策略），首次安装会报
+> `ERR_PNPM_IGNORED_BUILDS`。DSH 会把该包写进 profile 的 `pnpm-workspace.yaml`
+> 的 `allowBuilds` 里并留一句 `set this to true or false` —— **把它改成 `true`
+> 再重跑一次命令即可**，`postinstall` 就会执行并装好 electron。
+> 不改也能用：插件面板在检测到缺依赖时会显示「安装依赖」按钮，点一下就补装。
+
 
 ## 安装（三步）
 
