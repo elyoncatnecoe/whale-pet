@@ -1,0 +1,12 @@
+{
+  "name": "whale-pet-app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}
