@@ -63,6 +63,20 @@ window.__ModuleLoader__.load({
 				} finally { setBusy(false); }
 			};
 
+			// 依赖缺失时的一键安装（主要是 electron，约 180MB）。
+			// pnpm 10+ 默认拦截依赖的 postinstall，所以只能由用户在此显式触发。
+			const doInstall = async () => {
+				setBusy(true); setError("正在安装依赖（约 180MB，请耐心等待）…");
+				try {
+					const r = await callHost("install");
+					if (r && r.ok === false) setError(r.error);
+					else setError(null);
+					setStatus(await callHost("status"));
+				} catch (e) {
+					setError(String(e.message || e));
+				} finally { setBusy(false); }
+			};
+
 			const checkBalance = async () => {
 				setBusy(true); setError(null);
 				try {
@@ -129,9 +143,18 @@ window.__ModuleLoader__.load({
 				]),
 				row([
 					React.createElement("span", { key: "s", style: { flex: 1 } },
-						status.running ? "🟢 运行中" : "⚪ 未启动"),
+						status.installing ? "⏳ 安装依赖中…"
+							: status.running ? "🟢 运行中"
+							: status.ready ? "⚪ 未启动"
+							: "🔧 依赖未装"),
 					btn(status.running ? "关闭" : "启动", toggle),
 				]),
+				// 依赖缺失时给一个明确的一键安装入口，否则用户只会看到「启动失败」
+				!status.ready ? row([
+					React.createElement("span", { key: "d", style: { flex: 1, fontSize: "12px", opacity: 0.75 } },
+						"首次使用需装 electron"),
+					btn(status.installing ? "安装中…" : "安装依赖", doInstall),
+				]) : null,
 				row([
 					React.createElement("span", { key: "b", style: { flex: 1 } },
 						money ? `${low ? "⚡ " : "💰 "}余额 ${money}` : "💰 未查询"),

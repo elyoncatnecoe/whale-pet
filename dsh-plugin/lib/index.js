@@ -18,7 +18,7 @@ const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url))
 const ROUTE = '/whale-pet-desktop/rpc'
 
 /** 桌宠进程状态。 */
-const state = { child: null, startedAt: 0, lastError: undefined }
+const state = { child: null, startedAt: 0, lastError: undefined, installing: false }
 
 /** 是否在运行。 */
 function isRunning() {
@@ -87,8 +87,10 @@ async function startPet() {
   if (!electron) {
     // 把所有候选都告诉用户，方便他挑一个装依赖 / 或设 WHALE_PET_DIR
     const tried = candidates.length > 0 ? candidates.join(' 、 ') : petDir
-    state.lastError = `桌宠依赖未安装。请在下面任一目录执行 npm install：${tried}`
-    return { ok: false, error: state.lastError }
+    state.lastError =
+      `桌宠依赖未安装（缺 electron）。可在界面点「安装依赖」自动处理，` +
+      `或手动在下面任一目录执行 npm install：${tried}`
+    return { ok: false, error: state.lastError, needsInstall: true, petDir }
   }
   try {
     // 关键：剥掉 ELECTRON_RUN_AS_NODE。DSH 宿主可能带着这个变量，
@@ -123,6 +125,60 @@ function stopPet() {
   try { state.child.kill() } catch { /* 已退出 */ }
   state.child = null
   return { ok: true }
+}
+
+/**
+ * 按需安装桌宠依赖（主要是 electron，约 180MB）。
+ *
+ * 为什么不在 postinstall 里做：pnpm 10+ 默认拦截依赖的构建脚本，
+ * 插件从 git/npm 装下来时 postinstall 不会执行。所以改成用户点按钮
+ * 时再装，进度也能反馈到界面。
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+async function installDeps() {
+  if (state.installing) return { ok: false, error: '正在安装中，请稍候…' }
+  const { dir: petDir, candidates } = resolvePet()
+  if (!petDir) {
+    return { ok: false, error: '找不到桌宠目录，无法安装依赖' }
+  }
+  state.installing = true
+  state.lastError = undefined
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn('npm', ['install', '--no-audit', '--no-fund'], {
+        cwd: petDir,
+        stdio: 'ignore',
+        shell: true,
+        env: { ...process.env },
+      })
+      const timer = setTimeout(() => {
+        try { child.kill() } catch { /* 已退出 */ }
+        reject(new Error('安装超时（10 分钟），请检查网络后手动安装'))
+      }, 10 * 60 * 1000)
+      child.on('exit', (code) => {
+        clearTimeout(timer)
+        if (code === 0) resolve()
+        else reject(new Error(`npm install 退出码 ${code}`))
+      })
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        reject(err)
+      })
+    })
+    // 装完再验一次
+    const { electron } = resolvePet()
+    if (!electron) {
+      return { ok: false, error: `npm install 已执行，但仍找不到 electron。可手动在 ${petDir} 执行 npm install 查看报错。` }
+    }
+    return { ok: true }
+  } catch (err) {
+    const msg = err?.message ?? String(err)
+    state.lastError = `依赖安装失败：${msg}`
+    const tried = candidates.length > 0 ? candidates.join(' 、 ') : petDir
+    return { ok: false, error: `${state.lastError}。可手动在 ${tried} 执行 npm install。` }
+  } finally {
+    state.installing = false
+  }
 }
 
 /** 读取凭据文件里的一个值（最小化逐行解析）。 */
@@ -174,10 +230,12 @@ const METHODS = {
       petDir: dir,
       // 让界面能区分「找不到目录」和「目录在但依赖没装」
       ready: Boolean(dir && electron),
+      installing: Boolean(state.installing),
     }
   },
   start: async () => startPet(),
   stop: async () => stopPet(),
+  install: async () => installDeps(),
   balance: async () => queryBalance(),
 }
 
