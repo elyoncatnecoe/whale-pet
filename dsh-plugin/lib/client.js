@@ -11,9 +11,9 @@ window.__ModuleLoader__.load({
 		// 命名空间与插槽 id 都带 -desktop 后缀：DSH 的 sidebar.footer.action 是
 		// 列表插槽，只有「用别人已占用的 id」才会替换；用独有 id 一律新增。
 		// 这样虎鲸桌宠可以和别的宠物插件共存，不会互相顶掉。
-		const NS = "whale-pet-desktop";
-		const RPC = "/whale-pet-desktop/rpc";
-		const SLOT_ID = "whale-pet-desktop";
+		const NS = "3d-whale-pet";
+		const RPC = "/3d-whale-pet/rpc";
+		const SLOT_ID = "3d-whale-pet";
 
 		/** 调 Host 半边。 */
 		async function callHost(method, args) {
@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
 				finally { setBusy(false); }
 			};
 
-			const label = "🐋 虎鲸桌宠";
+			const label = "🐋 3D小虎鲸";
 
 			// 关闭状态：只画一个可点的按钮。
 			if (!open) {
@@ -177,7 +177,7 @@ window.__ModuleLoader__.load({
 				// 其他宠物插件只要用它们自己的 id，就能与本插件共存。
 				id: SLOT_ID,
 				order: 100,
-				label: () => "🐋 虎鲸桌宠",
+				label: () => "🐋 3D小虎鲸",
 			}, WhalePetButton));
 		}
 

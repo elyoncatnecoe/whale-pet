@@ -1,7 +1,7 @@
 {
-  "name": "dsh-plugin-whale-pet-desktop",
+  "name": "3d-whale-pet-desktop",
   "version": "0.1.0",
-  "description": "虎鲸桌宠（桌面版）：把 whale-pet Electron 桌面宠物接入 DeepSeek Harness，在侧边栏一键启动/关闭，并显示 API 余额。注意：这与同名的网页版插件 dsh-plugin-whale-pet 是两个不同项目。",
+  "description": "3D小虎鲸（桌面版）：把 3d-whale-pet Electron 桌面宠物接入 DeepSeek Harness，在侧边栏一键启动/关闭，并显示 API 余额。注意：这与网页版插件「小鲸鱼 / dsh-plugin-whale-pet」是两个不同项目。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

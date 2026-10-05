@@ -17,12 +17,12 @@ const PET = join(PLUGIN, 'pet')
 // 包名必须与 dsh-plugin/package.json 的 name 一致。
 // 注意：npm 上另有一个同用途但不同项目的 dsh-plugin-whale-pet（网页版），
 // 我们刻意带了 -desktop 后缀以避免装错。
-const PKG_NAME = 'dsh-plugin-whale-pet-desktop'
+const PKG_NAME = '3d-whale-pet-desktop'
 // Loader 条目 id：带 -desktop 后缀，与其他宠物插件互不占用。
-const ENTRY_ID = 'whale-pet-desktop'
+const ENTRY_ID = '3d-whale-pet-desktop'
 // 历史遗留：早期版本用过旧名/旧 id，升级时要把残留清掉
-const LEGACY_IDS = ['whale-pet']
-const LEGACY_NAMES = ['dsh-plugin-whale-pet']
+const LEGACY_IDS = ['whale-pet', 'whale-pet-desktop']
+const LEGACY_NAMES = ['dsh-plugin-whale-pet', 'dsh-plugin-whale-pet-desktop']
 
 function log(msg) { console.log(msg) }
 function fail(msg) { console.error('❌ ' + msg); process.exit(1) }

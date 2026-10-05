@@ -1,7 +1,7 @@
 {
-  "name": "whale-pet",
+  "name": "3d-whale-pet",
   "version": "0.1.0",
-  "description": "虎鲸桌宠：常驻桌面的透明置顶虎鲸（Electron），同时是 DeepSeek Harness 的插件——在侧边栏一键启停并查看 API 余额。",
+  "description": "3D小虎鲸：常驻桌面的透明置顶 3D 虎鲸（Electron），同时是 DeepSeek Harness 的插件——在侧边栏一键启停并查看 API 余额。",
   "main": "main.js",
   "exports": {
     ".": {
@@ -35,6 +35,7 @@
   "keywords": [
     "dsh",
     "dsh-plugin",
+    "3d-whale-pet",
     "whale-pet",
     "desktop-pet",
     "electron"
