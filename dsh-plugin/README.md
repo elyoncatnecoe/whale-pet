@@ -4,6 +4,13 @@
 
 ![插件入口](https://img.shields.io/badge/DSH-plugin-blue)
 
+> ⚠️ **注意区分同名插件**
+>
+> npm 上另有一个 **`dsh-plugin-whale-pet`**（作者 [Yifffan](https://github.com/Yifffan/dsh-plugin-whale-pet)），是**网页版**小鲸鱼，与本项目**无关**。
+>
+> 本插件的包名是 **`dsh-plugin-whale-pet-desktop`**（带 `-desktop` 后缀）。
+> 安装时请认准这个全名 —— 在插件栏只搜「whale-pet」有可能会装到对方那个，那样桌宠不会启动（它没有 `pet/` 目录）。
+
 ## 它做什么
 
 装好之后，DSH 侧边栏底部会多出一个 **「🐋 虎鲸桌宠」** 按钮，点开是一个小面板：
@@ -76,7 +83,7 @@ node dsh-plugin/scripts/install.mjs
 ```json
 {
   "dependencies": {
-    "dsh-plugin-whale-pet": "file:<本仓库的绝对路径>/dsh-plugin"
+    "dsh-plugin-whale-pet-desktop": "file:<本仓库的绝对路径>/dsh-plugin"
   }
 }
 ```
@@ -85,7 +92,7 @@ node dsh-plugin/scripts/install.mjs
 
 ```yaml
 - id: whale-pet
-  name: "dsh-plugin-whale-pet"
+  name: "dsh-plugin-whale-pet-desktop"
 ```
 
 **3. 链接并安装依赖**
@@ -99,7 +106,7 @@ cd <本仓库>/dsh-plugin/pet && npm install
 
 ```bash
 # 1. 从 profile 的 cordis.patch.yml 删掉 whale-pet 那段
-# 2. 从 profile 的 package.json 删掉 dsh-plugin-whale-pet 依赖
+# 2. 从 profile 的 package.json 删掉 dsh-plugin-whale-pet-desktop 依赖
 cd ~/.dsh/profiles/desktop && pnpm install
 ```
 
@@ -147,7 +154,7 @@ A：profile 里的是**拷贝**而非软链，改完源码需要重新同步：
 
 ```bash
 cd ~/.dsh/profiles/desktop
-rm -rf node_modules/dsh-plugin-whale-pet node_modules/.pnpm
+rm -rf node_modules/dsh-plugin-whale-pet-desktop node_modules/.pnpm
 pnpm install
 ```
 

@@ -3,7 +3,7 @@
 // 把本插件挂进 DSH 的 desktop profile，并安装桌宠自身依赖。
 //
 // 用法：node dsh-plugin/scripts/install.mjs
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
@@ -15,7 +15,12 @@ const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh')
 const PROFILE = join(DSH_HOME, 'profiles', 'desktop')
 const PET = join(PLUGIN, 'pet')
 const ENTRY_ID = 'whale-pet'
-const PKG_NAME = 'dsh-plugin-whale-pet'
+// 包名必须与 dsh-plugin/package.json 的 name 一致。
+// 注意：npm 上另有一个同用途但不同项目的 dsh-plugin-whale-pet（网页版），
+// 我们刻意带了 -desktop 后缀以避免装错。
+const PKG_NAME = 'dsh-plugin-whale-pet-desktop'
+// 历史遗留：早期版本用过旧名，升级时要把残留依赖清掉
+const LEGACY_NAMES = ['dsh-plugin-whale-pet']
 
 function log(msg) { console.log(msg) }
 function fail(msg) { console.error('❌ ' + msg); process.exit(1) }
@@ -46,6 +51,26 @@ log('✅ 桌宠依赖安装完成')
 const pkgPath = join(PROFILE, 'package.json')
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 pkg.dependencies = pkg.dependencies ?? {}
+
+// 4a. 清掉同名/旧名的冲突依赖。
+// 典型情况：用户在插件栏搜 "whale-pet" 时，pnpm 按包名解析，装到了另一个
+// 同名项目（dsh-plugin-whale-pet，网页版小鲸鱼），导致我们的桌宠压根没被挂载。
+let cleaned = []
+for (const name of LEGACY_NAMES) {
+  if (name === PKG_NAME) continue
+  if (pkg.dependencies[name] !== undefined) {
+    delete pkg.dependencies[name]
+    cleaned.push(name)
+  }
+}
+if (cleaned.length > 0) {
+  log(`🧹 已移除冲突依赖：${cleaned.join('、')}`)
+  // 顺手删掉它的安装产物，避免 pnpm 继续解析到旧包
+  try {
+    rmSync(join(PROFILE, 'node_modules', cleaned[0]), { recursive: true, force: true })
+  } catch { /* 不存在就算了 */ }
+}
+
 const spec = 'file:' + PLUGIN.replaceAll('\\', '/')
 if (pkg.dependencies[PKG_NAME] === spec) {
   log('✅ profile 依赖已存在，跳过')
@@ -54,6 +79,10 @@ if (pkg.dependencies[PKG_NAME] === spec) {
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
   log(`✅ 已写入 profile 依赖：${PKG_NAME} → ${spec}`)
 }
+if (cleaned.length > 0) {
+  // 有清理动作时也要落盘
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
+}
 
 // 5. 在 cordis.patch.yml 里加挂载记录
 // 注意：新增一行必须用 `- insert:` 包裹；裸 `- id:` 只会去「覆盖」已有行，
@@ -61,7 +90,21 @@ if (pkg.dependencies[PKG_NAME] === spec) {
 const patchPath = join(PROFILE, 'cordis.patch.yml')
 let patch = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
 if (patch.includes(`id: ${ENTRY_ID}`)) {
-  log('✅ 挂载记录已存在，跳过')
+  // id 已存在：可能是老版本留下的、name 还是旧包名，得改过来，
+  // 否则 DSH 会照着旧名字去解析模块，装不到我们这份。
+  const stale = new RegExp(`(id:\\s*${ENTRY_ID}\\s*\\r?\\n\\s*name:\\s*["'])[^"']+(["'])`)
+  if (stale.test(patch)) {
+    const before = patch
+    patch = patch.replace(stale, `$1${PKG_NAME}$2`)
+    if (patch !== before) {
+      writeFileSync(patchPath, patch, 'utf8')
+      log(`✅ 挂载记录已更新为新包名：${PKG_NAME}`)
+    } else {
+      log('✅ 挂载记录已存在且包名正确，跳过')
+    }
+  } else {
+    log('✅ 挂载记录已存在，跳过')
+  }
 } else {
   if (patch.trim() === '' || patch.trim() === '[]') patch = ''
   if (patch !== '' && !patch.endsWith('\n')) patch += '\n'
