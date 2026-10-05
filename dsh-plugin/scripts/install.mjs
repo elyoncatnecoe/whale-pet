@@ -49,85 +49,86 @@ try {
 }
 log('✅ 桌宠依赖安装完成')
 
-// 4. 把插件写进 profile 的 dependencies
+// 4. 整理 profile 依赖
+//
+// 本插件自带 dsh.bundle.patch，DSH 会依据 profile 的
+// dsh.profile.bundles 自动挂载，所以 profile 里只需要一条依赖。
+// 这一步做的是「去重与修正」：留下唯一正确的来源，删掉所有历史写法。
 const pkgPath = join(PROFILE, 'package.json')
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 pkg.dependencies = pkg.dependencies ?? {}
 
-// 4a. 清掉同名/旧名的冲突依赖。
-// 典型情况：用户在插件栏搜 "whale-pet" 时，pnpm 按包名解析，装到了另一个
-// 同名项目（dsh-plugin-whale-pet，网页版小鲸鱼），导致我们的桌宠压根没被挂载。
-let cleaned = []
-for (const name of LEGACY_NAMES) {
-  if (name === PKG_NAME) continue
-  if (pkg.dependencies[name] !== undefined) {
-    delete pkg.dependencies[name]
-    cleaned.push(name)
-  }
-}
-if (cleaned.length > 0) {
-  log(`🧹 已移除冲突依赖：${cleaned.join('、')}`)
-  // 顺手删掉它的安装产物，避免 pnpm 继续解析到旧包
-  try {
-    rmSync(join(PROFILE, 'node_modules', cleaned[0]), { recursive: true, force: true })
-  } catch { /* 不存在就算了 */ }
+const localSpec = 'file:' + PLUGIN.replaceAll('\\', '/')
+// 优先保留用户已有的 github 来源（那是最新的安装方式），
+// 否则用本地路径（本地开发者场景）。
+const existingGithub = Object.entries(pkg.dependencies)
+  .find(([name, spec]) => spec.includes('whale-pet') && /^(github:|git\+)/.test(spec))
+const finalSpec = existingGithub ? existingGithub[1] : localSpec
+
+// 删掉所有指向本插件的冗余依赖，只留一个。
+const staleNames = [PKG_NAME, ...LEGACY_NAMES, 'whale-pet']
+const removed = []
+for (const name of staleNames) {
+  const spec = pkg.dependencies[name]
+  if (spec === undefined) continue
+  // 保留那一条「最终采用」的
+  if (spec === finalSpec && (name === 'whale-pet' || name === PKG_NAME)) continue
+  delete pkg.dependencies[name]
+  removed.push(`${name}@${spec}`)
+  try { rmSync(join(PROFILE, 'node_modules', name), { recursive: true, force: true }) } catch { /* 不存在 */ }
 }
 
-const spec = 'file:' + PLUGIN.replaceAll('\\', '/')
-if (pkg.dependencies[PKG_NAME] === spec) {
-  log('✅ profile 依赖已存在，跳过')
-} else {
-  pkg.dependencies[PKG_NAME] = spec
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
-  log(`✅ 已写入 profile 依赖：${PKG_NAME} → ${spec}`)
+// 确保最终那条存在（用 github 来源时包名是 whale-pet，本地路径时是 PKG_NAME）
+const finalName = existingGithub ? existingGithub[0] : PKG_NAME
+if (pkg.dependencies[finalName] !== finalSpec) {
+  pkg.dependencies[finalName] = finalSpec
 }
-if (cleaned.length > 0) {
-  // 有清理动作时也要落盘
+writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
+if (removed.length > 0) log(`🧹 已移除冗余依赖：${removed.join('、')}`)
+log(`✅ profile 依赖：${finalName} → ${finalSpec}`)
+
+// 确保 bundles 里含该插件（DSH 通常会自动加，这里兜底）
+pkg.dsh = pkg.dsh ?? {}
+pkg.dsh.profile = pkg.dsh.profile ?? {}
+const bundles = pkg.dsh.profile.bundles ?? []
+if (!bundles.includes(finalName)) {
+  bundles.push(finalName)
+  pkg.dsh.profile.bundles = bundles
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
+  log(`✅ 已把 ${finalName} 加入 profile bundles`)
 }
 
 // 5. 在 cordis.patch.yml 里加挂载记录
-// 注意：新增一行必须用 `- insert:` 包裹；裸 `- id:` 只会去「覆盖」已有行，
-// 对不存在的 id 会报 patch: entry "..." not found。
+//
+// 重要前提：本插件现在自带 dsh.bundle.patch（见 dsh-plugin/cordis.patch.yml），
+// 由 profile 的 dsh.profile.bundles 自动挂载，**根本不需要在用户 patch 里手写条目**。
+// 历史上我们写过，那些残留记录会指向旧包名，导致：
+//   dsh: warning: 1 entry did not activate ... failed to import
+// 所以这里以「清理」为主：把本插件的所有历史遗留条目摘干净。
+//
+// 若清理后 patch 为空，需要补一个合法的空数组（YAML 不允许空文件当 patch）。
 const patchPath = join(PROFILE, 'cordis.patch.yml')
 let patch = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
 
-// 5a. 先摘掉早期版本用过的旧 id 条目（例如裸 `whale-pet`），
-//     否则升级后 profile 里会同时挂着新旧两行，导致重复挂载。
-let removedLegacy = 0
-for (const oldId of LEGACY_IDS) {
-  if (oldId === ENTRY_ID) continue
-  const block = new RegExp(`\\n?\\s*-\\s*id:\\s*${oldId}\\s*\\r?\\n\\s*name:\\s*["'][^"']+["']`, 'g')
-  const next = patch.replace(block, '')
-  if (next !== patch) { patch = next; removedLegacy++ }
-}
-if (removedLegacy > 0) {
-  writeFileSync(patchPath, patch, 'utf8')
-  log(`🧹 已移除 ${removedLegacy} 条旧挂载记录`)
-}
+const beforeClean = patch
+// 5a. 摘掉任何指向本插件的 id 条目（含旧 id 与当前 id），
+//     无论 name 写的是新包名、旧包名还是不存在的包名。
+const ourIds = new Set([ENTRY_ID, ...LEGACY_IDS])
+const blockRe = /^[ \t]*-[ \t]*id:[ \t]*([A-Za-z0-9._-]+)[ \t]*\r?\n(?:[ \t]+[^\r\n]*\r?\n?)*/gm
+patch = patch.replace(blockRe, (match, id) => (ourIds.has(id) ? '' : match))
 
-if (patch.includes(`id: ${ENTRY_ID}`)) {
-  // id 已存在：可能是老版本留下的、name 还是旧包名，得改过来，
-  // 否则 DSH 会照着旧名字去解析模块，装不到我们这份。
-  const stale = new RegExp(`(id:\\s*${ENTRY_ID}\\s*\\r?\\n\\s*name:\\s*["'])[^"']+(["'])`)
-  if (stale.test(patch)) {
-    const before = patch
-    patch = patch.replace(stale, `$1${PKG_NAME}$2`)
-    if (patch !== before) {
-      writeFileSync(patchPath, patch, 'utf8')
-      log(`✅ 挂载记录已更新为：${ENTRY_ID} → ${PKG_NAME}`)
-    } else {
-      log('✅ 挂载记录已存在且正确，跳过')
-    }
-  } else {
-    log('✅ 挂载记录已存在，跳过')
-  }
-} else {
-  if (patch.trim() === '' || patch.trim() === '[]') patch = ''
-  if (patch !== '' && !patch.endsWith('\n')) patch += '\n'
-  patch += `\n- insert:\n    - id: ${ENTRY_ID}\n      name: "${PKG_NAME}"\n`
+// 5b. 摘掉空的 insert 块（只有 `- insert:` 没有任何子项）。
+//     这类残块是我们早期清理留下的，YAML 合法但毫无意义。
+patch = patch.replace(/^[ \t]*-[ \t]*insert:[ \t]*\r?\n(?=[ \t]*\r?\n|[ \t]*-[ \t]*(?:id|insert):|$)/gm, '')
+
+if (patch !== beforeClean) {
+  // 清完可能只剩空白：补一个空数组，否则 DSH 会报
+  // 「must be a top-level YAML array of loader patch entries」
+  if (patch.trim() === '') patch = '[]\n'
   writeFileSync(patchPath, patch, 'utf8')
-  log(`✅ 已添加插件挂载记录：${ENTRY_ID}（insert 语法）`)
+  log('🧹 已移除本插件的历史挂载记录（现由 dsh.bundle.patch 自动挂载）')
+} else {
+  log('✅ 用户 patch 中无本插件残留记录')
 }
 
 // 6. pnpm install 把插件链接进 profile
