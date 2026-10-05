@@ -16,8 +16,16 @@
   "files": [
     "lib/index.js",
     "lib/client.js",
+    "cordis.patch.yml",
+    "scripts/postinstall.mjs",
     "pet"
   ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
