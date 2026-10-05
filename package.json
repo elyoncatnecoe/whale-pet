@@ -1,9 +1,17 @@
 {
   "name": "whale-pet",
   "version": "0.1.0",
-  "private": true,
-  "description": "虎鲸桌宠：dsh harness 的桌面小伙伴（透明置顶悬浮窗）",
+  "description": "虎鲸桌宠：常驻桌面的透明置顶虎鲸（Electron），同时是 DeepSeek Harness 的插件——在侧边栏一键启停并查看 API 余额。",
   "main": "main.js",
+  "exports": {
+    ".": {
+      "default": "./dsh-plugin/lib/index.js"
+    },
+    "./client": {
+      "default": "./dsh-plugin/lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "start": "electron ."
   },
@@ -12,5 +20,28 @@
   },
   "devDependencies": {
     "electron": "^31.7.7"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "dsh-plugin/cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "whale-pet",
+    "desktop-pet",
+    "electron"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elyoncatnecoe/whale-pet.git"
   }
 }

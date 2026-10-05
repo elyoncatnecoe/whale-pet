@@ -1,11 +1,15 @@
-# dsh-plugin-whale-pet-desktop 的 bundle patch。
-# DSH 通过 package.json 的 dsh.bundle.patch 找到本文件，把插件挂进 profile。
+# 虎鲸桌宠的 bundle patch（DSH 通过 package.json 的 dsh.bundle.patch 找到本文件）。
 #
 # 用 insert: 包裹（裸 `- id:` 只会覆盖已有行，对不存在的 id 会报
 # patch: entry "..." not found）。
 #
 # id 带 -desktop 后缀：DSH 按 id 区分加载条目，用独有 id 就能和
 # 其他宠物插件共存，不会互相顶掉。
+#
+# name 用相对路径 ../ 指回包根：DSH 的规则是「插入行里的相对模块名
+# 相对 patch 文件所在目录解析」，而 patch 在 <包根>/dsh-plugin/ 下。
+# 这样写的好处是无论用户从仓库根安装（包名 whale-pet）还是从本子目录
+# 安装（包名 dsh-plugin-whale-pet-desktop），都能解析到正确的入口。
 - insert:
     - id: whale-pet-desktop
-      name: "dsh-plugin-whale-pet-desktop"
+      name: "../"
