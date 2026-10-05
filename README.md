@@ -1,6 +1,6 @@
-# 虎鲸桌宠（whale-pet）
+# 3D小虎鲸（3d-whale-pet）
 
-一只常驻桌面的透明置顶虎鲸桌宠：用 Three.js 程序化建模、Electron 承载，并作为 dsh harness 的第二客户端订阅事件流、派发任务、驱动情绪状态机。
+一只常驻桌面的透明置顶 3D 虎鲸：用 Three.js 程序化建模、Electron 承载，并作为 dsh harness 的第二客户端订阅事件流、派发任务、驱动情绪状态机。
 
 > 个人非官方爱好者作品，与 DeepSeek 官方无关联。虎鲸形象为 DeepSeek 品牌标识，权利归其所有，详见 [LICENSE](./LICENSE)。
 

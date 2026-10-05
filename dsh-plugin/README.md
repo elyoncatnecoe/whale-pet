@@ -1,4 +1,4 @@
-# 🐋 虎鲸桌宠 · DSH 插件
+# 🐋 3D小虎鲸 · DSH 插件
 
 把 [whale-pet](../) 虎鲸桌宠接入 **DeepSeek Harness**：在侧边栏一键启动/关闭桌宠，并随时查看 API 余额。
 
@@ -8,7 +8,7 @@
 >
 > npm 上另有一个 **`dsh-plugin-whale-pet`**（作者 [Yifffan](https://github.com/Yifffan/dsh-plugin-whale-pet)），是**网页版**小鲸鱼，与本项目**无关**。
 >
-> 本插件的包名是 **`dsh-plugin-whale-pet-desktop`**（带 `-desktop` 后缀）。
+> 本插件的包名是 **`3d-whale-pet-desktop`**（带 `-desktop` 后缀）。
 > 安装时请认准这个全名 —— 在插件栏只搜「whale-pet」有可能会装到对方那个，那样桌宠不会启动（它没有 `pet/` 目录）。
 
 ## 与其他宠物插件共存
@@ -17,7 +17,7 @@
 
 | 标识符 | 值 |
 | --- | --- |
-| 包名 | `dsh-plugin-whale-pet-desktop` |
+| 包名 | `3d-whale-pet-desktop` |
 | 侧边栏插槽 id | `whale-pet-desktop` |
 | RPC 路由 | `/whale-pet-desktop/rpc` |
 | Loader 条目 id | `whale-pet-desktop` |
@@ -107,7 +107,7 @@ https://github.com/elyoncatnecoe/whale-pet
 dsh plugin --profile desktop add "github:elyoncatnecoe/whale-pet"
 ```
 
-装完**重启 DSH**，侧边栏底部就有 **🐋 虎鲸桌宠** 了。
+装完**重启 DSH**，侧边栏底部就有 **🐋 3D小虎鲸** 了。
 点「启动」时若提示依赖缺失，面板上会显示「**安装依赖**」按钮，点一下自动装好（约 180MB 的 electron）。
 
 > 想让安装时自动装依赖（而不是事后点按钮），需要放行构建脚本：
@@ -140,7 +140,7 @@ node dsh-plugin/scripts/install.mjs
 # 3. 完全退出 DeepSeek Harness（注意托盘图标也要退），重新启动
 ```
 
-重启后，侧边栏底部就有 **🐋 虎鲸桌宠** 按钮了。
+重启后，侧边栏底部就有 **🐋 3D小虎鲸** 按钮了。
 
 ## 手动安装
 
@@ -153,7 +153,7 @@ node dsh-plugin/scripts/install.mjs
 ```json
 {
   "dependencies": {
-    "dsh-plugin-whale-pet-desktop": "file:<本仓库的绝对路径>/dsh-plugin"
+    "3d-whale-pet-desktop": "file:<本仓库的绝对路径>/dsh-plugin"
   }
 }
 ```
@@ -162,7 +162,7 @@ node dsh-plugin/scripts/install.mjs
 
 ```yaml
 - id: whale-pet
-  name: "dsh-plugin-whale-pet-desktop"
+  name: "3d-whale-pet-desktop"
 ```
 
 **3. 链接并安装依赖**
@@ -176,7 +176,7 @@ cd <本仓库>/dsh-plugin/pet && npm install
 
 ```bash
 # 1. 从 profile 的 cordis.patch.yml 删掉 whale-pet 那段
-# 2. 从 profile 的 package.json 删掉 dsh-plugin-whale-pet-desktop 依赖
+# 2. 从 profile 的 package.json 删掉 3d-whale-pet-desktop 依赖
 cd ~/.dsh/profiles/desktop && pnpm install
 ```
 
@@ -224,7 +224,7 @@ A：profile 里的是**拷贝**而非软链，改完源码需要重新同步：
 
 ```bash
 cd ~/.dsh/profiles/desktop
-rm -rf node_modules/dsh-plugin-whale-pet-desktop node_modules/.pnpm
+rm -rf node_modules/3d-whale-pet-desktop node_modules/.pnpm
 pnpm install
 ```
 
