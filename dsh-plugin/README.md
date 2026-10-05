@@ -11,6 +11,24 @@
 > 本插件的包名是 **`dsh-plugin-whale-pet-desktop`**（带 `-desktop` 后缀）。
 > 安装时请认准这个全名 —— 在插件栏只搜「whale-pet」有可能会装到对方那个，那样桌宠不会启动（它没有 `pet/` 目录）。
 
+## 与其他宠物插件共存
+
+本插件的所有标识符都带 `-desktop` 后缀，刻意避开了通用名字：
+
+| 标识符 | 值 |
+| --- | --- |
+| 包名 | `dsh-plugin-whale-pet-desktop` |
+| 侧边栏插槽 id | `whale-pet-desktop` |
+| RPC 路由 | `/whale-pet-desktop/rpc` |
+| Loader 条目 id | `whale-pet-desktop` |
+
+DSH 的 `sidebar.footer.action` 是**列表插槽**，规则是：
+
+- 用自己的独有 id → **新增**一个入口（不碰别人）
+- 复用别人已占用的 id → **替换**掉那一个
+
+所以只要别的宠物插件也用它们自己的独有 id，**多个宠物就能在侧边栏并列共存**，不会互相顶掉。做新宠物插件时照抄这张表的命名方式即可。
+
 ## 它做什么
 
 装好之后，DSH 侧边栏底部会多出一个 **「🐋 虎鲸桌宠」** 按钮，点开是一个小面板：
