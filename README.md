@@ -22,29 +22,33 @@ npm install
 npm start
 ```
 
-依赖：Electron 31、`ws`（事件流 WebSocket 客户端）。建议 Node ≥ 18。
+依赖：Electron `^31.7.7`、`ws`（事件流 WebSocket 客户端）。建议 Node ≥ 18。
+
+> ⚠️ **桌宠目录必须在本地磁盘**：放在网络盘、虚拟盘或部分挂载卷（例如 `P:\`）上时，Electron 一启动就会崩（退出码 `0xC0000005` / `0x80000003`，连 `--version` 都崩），这与本插件无关。把项目放到本地磁盘（如 `D:\whale-pet`）即可；插件检测到桌宠秒退时也会给出提示。
+
+手动 `npm start` 时，桌宠会先读插件写下的发现文件 `$DSH_HOME/cache/whale-pet-dsh-url.json`（形如 `{"url":"http://127.0.0.1:52062","updatedAt":...}`，另有 `%TEMP%` 一份兼容副本），拿不到才探测默认端口。所以更省事的做法是从侧边栏启动。
 
 ## 作为 DSH 插件使用（推荐）
 
-不想碰命令行？本仓库附带一个 **DSH 插件**，装好后在 DeepSeek Harness 侧边栏点一下就能启动桌宠，并直接查看余额：
+不想碰命令行？本仓库自带一个 **DSH 插件**（`dsh.bundle.patch` 随包分发）：装好后在 DeepSeek Harness 侧边栏点一下就能启动桌宠，并直接查看余额。
 
-在 DSH 的插件栏直接填仓库地址即可（无需子目录语法）：
+安装只有一种方式——在 DSH 的插件栏直接填仓库地址（无需子目录语法）：
 
 ```
 https://github.com/elyoncatnecoe/whale-pet
 ```
 
-或命令行：`dsh plugin --profile desktop add "github:elyoncatnecoe/whale-pet"`，然后完全重启 DSH。
-
-也可以 clone 后跑脚本：
+或者用命令行：
 
 ```bash
-git clone https://github.com/elyoncatnecoe/whale-pet.git
-cd whale-pet
-node dsh-plugin/scripts/install.mjs
+dsh plugin --profile desktop add "github:elyoncatnecoe/whale-pet"
 ```
 
-重启后侧边栏底部会出现 **🐋 虎鲸桌宠** 按钮。详见 [dsh-plugin/README.md](./dsh-plugin/README.md)。
+装完**完全重启 DSH**（托盘图标也要退干净），侧边栏底部就会出现 **🐋 3D小虎鲸** 按钮。
+
+> 💡 DSH 会同时写 profile 的 `dependencies`（pnpm 链接）和 `dsh.profile.bundles`（插件加载层）——**两条都写是正常的，不要试图只留一条**。插件自带 `dsh.bundle.patch`，由 bundles 自动挂载，所以**不要**再往 `cordis.patch.yml` 里手写挂载行。
+
+详见 [dsh-plugin/README.md](./dsh-plugin/README.md)。
 
 ## 操作说明
 
@@ -58,7 +62,12 @@ node dsh-plugin/scripts/install.mjs
 
 ## 与 dsh harness 的连接
 
-桌宠通过 `WHALE_PET_URL` 连接 harness，**默认 `http://127.0.0.1:19387`**（新版 dsh 桌面版端口；旧版 dsh web 用 3080，可用环境变量覆盖）。
+DSH 桌面版**每次启动的端口都是随机的**，没有固定的 19387 / 3080。
+
+- **自动传参**：从侧边栏启动桌宠时，插件会把当前 DSH 的真实地址通过环境变量 `WHALE_PET_URL` 传给桌宠进程。
+- **自动发现**：手动 `npm start` 时，桌宠先读插件写下的发现文件 `$DSH_HOME/cache/whale-pet-dsh-url.json`（另有 `%TEMP%` 兼容副本），读不到才探测 `19387` / `3080`。
+- **自动跟随**：桌宠每次重连都会重新解析地址，DSH 重启换了端口后它自己会跟回来，不用重开桌宠。
+- **面板显示**：侧边栏面板里会显示当前 DSH 地址，排障时以它为准。
 
 - **鉴权**：新版 dsh 需要浏览器会话鉴权。桌宠会自动读取 `$DSH_HOME/.credentials.yaml`（默认 `~/.dsh/.credentials.yaml`）里 `client-connection/browser-session` 的签名密钥，自行签发 `dsh-auth-<authority-hash>` Cookie，无需手动配置。
 - **RPC**：`POST /api/<domain>/<method>`，payload 形如 `{ args: { <包装字段>: {...} } }`。注意这个**包装字段名随方法而异**（`session/list` 用 `_request`，`session/prompt` 用 `request`），`gateway.js` 会按候选名依次尝试；`prompt` 类方法还要求必填 `requestId`（自动补 UUID）。
@@ -93,16 +102,18 @@ const live = items && items.filter((it) => !it.blank)   // ← 去掉 !it.blank 
 桌宠不依赖安装位置，解压到任意目录、`npm install && npm start` 即可运行：
 
 - 所有资源用相对路径加载，窗口 / 面板 / vendor 脚本都随应用目录走。
-- harness 地址与数据目录分别通过 `WHALE_PET_URL`、`DSH_HOME` 覆盖，适配不同端口 / 主机 / 多套 dsh 数据目录。
+- harness 地址通常由插件自动传递 / 发现，也可用 `WHALE_PET_URL` 显式覆盖；数据目录用 `DSH_HOME` 覆盖，适配不同主机 / 多套 dsh 数据目录。
 
 ### 连接自检
 
 若派活提示「未连接到 harness」，按顺序检查：
 
-1. dsh 是否在运行（任务管理器里应有 `DeepSeek Harness.exe`）。
-2. 端口是否匹配：默认连 19387，用 `Get-NetTCPConnection -LocalPort 19387 -State Listen` 确认。
-3. 密钥文件是否存在且可读：`~/.dsh/.credentials.yaml`。
-4. 自定义端口时设置环境变量：`$env:WHALE_PET_URL="http://127.0.0.1:<port>"`。
+1. DSH 是否在运行（任务管理器里应有 `DeepSeek Harness.exe`）。
+2. 端口不用猜：DSH 桌面版每次启动端口随机，**以侧边栏面板里显示的当前 DSH 地址为准**。
+3. 优先从侧边栏「启动」——插件会把真实地址通过 `WHALE_PET_URL` 直接传给桌宠。
+4. 手动 `npm start` 时，检查发现文件 `$DSH_HOME/cache/whale-pet-dsh-url.json` 是否存在、里面的 `url` 是否与面板一致；也可以显式覆盖：`$env:WHALE_PET_URL="http://127.0.0.1:<port>"`。
+5. 密钥文件是否存在且可读：`~/.dsh/.credentials.yaml`。
+6. 看日志：插件会把 electron 的 stderr 写到 `%TEMP%\whale-pet-electron.log`，里面是实际报错。
 
 ## 余额查询
 
@@ -132,6 +143,24 @@ whale-pet/
     ├── help.html      # 内置帮助文档
     └── vendor/        # three.min.js + OrbitControls.js
 ```
+
+## 常见问题
+
+**Q：桌宠从侧边栏启动后立刻退出（或手动跑 electron 报 `0xC0000005` / `0x80000003`）？**
+
+A：先确认项目放在**本地磁盘**上。网络盘、虚拟盘或部分挂载卷（例如 `P:\`）会让 Electron 在启动阶段就崩，连 `--version` 都跑不起来，与本项目无关；把项目移到本地磁盘即可。其他原因看 `%TEMP%\whale-pet-electron.log`。
+
+**Q：派活提示「未连接到 harness」？**
+
+A：DSH 桌面版端口每次启动随机，没有固定端口。从侧边栏启动时插件会自动把地址传给桌宠；手动 `npm start` 则依赖 `$DSH_HOME/cache/whale-pet-dsh-url.json`，或用 `WHALE_PET_URL` 显式指定。详见上面的「连接自检」。
+
+**Q：侧边栏按钮不见了 / 控制台报 `duplicate factory registration for "3d-whale-pet"`？**
+
+A：说明插件被挂载了两次——插件自带的 `dsh.bundle.patch` 已经自动挂载了一行，profile 的 `cordis.patch.yml` 里不能再手写挂载行（旧安装器/手动安装教程留下过这种残留）。跑一次 `node dsh-plugin/scripts/install.mjs` 会自动清理，然后完全重启 DSH。详见 [dsh-plugin/README.md](./dsh-plugin/README.md)。
+
+**Q：包名怎么变了？**
+
+A：`0.2.0` 起统一为 **`3d-whale-pet`**（仓库根包、`dsh-plugin` 子包、Loader 条目 id、客户端注册 id、插槽 id、RPC 路由全部同名）。旧名 `3d-whale-pet-desktop` / `dsh-plugin-whale-pet-desktop` 由安装器自动清理，重启即可，不需要手动卸。
 
 ## 注意事项
 
