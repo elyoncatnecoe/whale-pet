@@ -3,16 +3,24 @@
 # 用 insert: 包裹（裸 `- id:` 只会覆盖已有行，对不存在的 id 会报
 # patch: entry "..." not found）。
 #
-# id 用独有值：DSH 的插件加载器按 id 区分条目，用独有 id 就能和别的
-# 宠物插件（例如网页版「小鲸鱼」）共存，不会互相顶掉。
+# ── 加载方式：只此一条，别再手抄 ────────────────────────────────
+# 本文件由 profile 的 `dsh.profile.bundles` 自动加载（DSH 会按包名找到它）。
+# 千万不要再把这行抄进 profile 的 `cordis.patch.yml`：那样同一个插件会被挂载
+# 两次，浏览器端会执行两遍 client bundle，DSH 的 client-modules 对同 id 的
+# 第二次注册会直接抛
+#   client-modules: duplicate factory registration for "3d-whale-pet"
+# 整个客户端半边（侧边栏按钮）就都不激活了。这正是 issue #2 里第一个问题的成因。
 #
-# name 用相对本文件的路径指向 Host 半边入口。DSH 的规则是「插入行里的
-# 相对模块名相对 patch 文件所在目录解析」，而 patch 在 <包根>/dsh-plugin/。
-# 注意必须指到具体 .js 文件：Node 的 ESM 解析不支持目录导入（会报
+# ── name 的相对基准 ──────────────────────────────────────────────
+# DSH 0.2.x 的 loader 在读 patch 时会把 insert 行里以 `./`、`../` 或绝对路径
+# 开头的 name 改写成「相对**本 patch 文件所在目录**」的 file:// URL
+# （dsh-app-boot 的 anchorInsertedPluginNames）。所以基准永远是这份文件所在的
+# dsh-plugin/，与 profile 目录、启动方式都无关——这也是为什么同一个字符串在
+# 「插件管理器启用」和「启动时 bundle 层加载」两条路上表现一致。
+# 前提是不要把这行搬到别的 patch 文件里（搬了基准就跟着变）。
+#
+# 必须指到具体 .js 文件：Node 的 ESM 解析不支持目录导入（会报
 # ERR_UNSUPPORTED_DIR_IMPORT）。
-#
-# 这样写的好处：无论用户从仓库根安装（包名 3d-whale-pet）还是从本子目录
-# 安装（包名 3d-whale-pet-desktop），都能解析到同一入口。
 - insert:
-    - id: 3d-whale-pet-desktop
+    - id: 3d-whale-pet
       name: "./lib/index.js"

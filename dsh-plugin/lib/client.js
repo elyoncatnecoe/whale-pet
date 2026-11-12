@@ -1,5 +1,18 @@
-window.__ModuleLoader__.load({
-	id: "dsh-plugin-whale-pet-desktop",
+// 幂等护栏：同一个 bundle 若被两条 Loader 行挂载（例如插件自带的 bundle patch
+// 已经插了一行，用户又在 profile 的 cordis.patch.yml 里手写了一条），浏览器会把这个
+// 脚本执行两次；DSH 的 client-modules 对同一 id 的第二次注册会直接抛
+//   client-modules: duplicate factory registration for "3d-whale-pet"
+// 整条客户端半边（侧边栏按钮）就都不激活了。工厂注册一次就够，所以第二次执行
+// 在这里变成安全 no-op —— 用户就算踩了这个坑，按钮也不会消失。
+if (window.__3dWhalePetClientRegistered__) {
+	// 已注册过：什么都不做
+} else {
+	window.__3dWhalePetClientRegistered__ = true;
+	window.__ModuleLoader__.load({
+	// 注册 id 必须等于本包的 package.json name：DSH 的 client-modules 用
+	// 「最近的 package manifest 名」作为浏览器模块 id，并在此 id 上等这条
+	// bundle 注册；对不上会报 "loaded without registering ..." 而整条客户端半边失效。
+	id: "3d-whale-pet",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -8,7 +21,7 @@ window.__ModuleLoader__.load({
 		const React = require("react");
 		const slots = require("@deepseek-ai/dsh-client-ui-slots");
 
-		// 命名空间与插槽 id 都带 -desktop 后缀：DSH 的 sidebar.footer.action 是
+		// 命名空间与插槽 id 都用 3d-whale-pet 前缀：DSH 的 sidebar.footer.action 是
 		// 列表插槽，只有「用别人已占用的 id」才会替换；用独有 id 一律新增。
 		// 这样虎鲸桌宠可以和别的宠物插件共存，不会互相顶掉。
 		const NS = "3d-whale-pet";
@@ -155,6 +168,11 @@ window.__ModuleLoader__.load({
 						"首次使用需装 electron"),
 					btn(status.installing ? "安装中…" : "安装依赖", doInstall),
 				]) : null,
+				// DSH 桌面版端口每次启动都变，这里把当前地址直接显示出来：
+				// 连不上时用户不用自己去查端口，也方便手动启动桌宠时设置 WHALE_PET_URL。
+				status.dshUrl ? React.createElement("div", {
+					style: { fontSize: "11px", opacity: 0.6, marginTop: "2px", wordBreak: "break-all" },
+				}, `DSH: ${status.dshUrl}`) : null,
 				row([
 					React.createElement("span", { key: "b", style: { flex: 1 } },
 						money ? `${low ? "⚡ " : "💰 "}余额 ${money}` : "💰 未查询"),
@@ -187,4 +205,5 @@ window.__ModuleLoader__.load({
 		exports.inject = inject;
 		return module.exports;
 	},
-});
+	});
+}

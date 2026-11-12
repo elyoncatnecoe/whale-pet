@@ -1,6 +1,6 @@
 {
   "name": "3d-whale-pet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "3D小虎鲸：常驻桌面的透明置顶 3D 虎鲸（Electron），同时是 DeepSeek Harness 的插件——在侧边栏一键启停并查看 API 余额。",
   "main": "main.js",
   "exports": {

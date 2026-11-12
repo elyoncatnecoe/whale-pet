@@ -14,15 +14,18 @@ const PLUGIN = resolve(HERE, '..')
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh')
 const PROFILE = join(DSH_HOME, 'profiles', 'desktop')
 const PET = join(PLUGIN, 'pet')
-// 包名必须与 dsh-plugin/package.json 的 name 一致。
-// 注意：npm 上另有一个同用途但不同项目的 dsh-plugin-whale-pet（网页版），
-// 我们刻意带了 -desktop 后缀以避免装错。
-const PKG_NAME = '3d-whale-pet-desktop'
-// Loader 条目 id：带 -desktop 后缀，与其他宠物插件互不占用。
-const ENTRY_ID = '3d-whale-pet-desktop'
+// 包名必须与 dsh-plugin/package.json 的 name 一致，也与仓库根包名一致。
+// 三者统一成 3d-whale-pet 是刻意的：DSH 的 client-modules 用「最近的 package
+// manifest 名」当浏览器模块 id，并在这个 id 上等客户端 bundle 注册；包名与
+// client.js 里的注册 id 一旦对不上，侧边栏按钮就不激活
+// （报 "loaded without registering ..."）。npm 上另有一个同用途但不同项目的
+// dsh-plugin-whale-pet（网页版），我们的包名与它不同，不会装错。
+const PKG_NAME = '3d-whale-pet'
+// Loader 条目 id：与包名相同，便于用户对照 ——dump-config 的输出。
+const ENTRY_ID = '3d-whale-pet'
 // 历史遗留：早期版本用过旧名/旧 id，升级时要把残留清掉
-const LEGACY_IDS = ['whale-pet', 'whale-pet-desktop']
-const LEGACY_NAMES = ['dsh-plugin-whale-pet', 'dsh-plugin-whale-pet-desktop']
+const LEGACY_IDS = ['whale-pet', 'whale-pet-desktop', '3d-whale-pet-desktop', 'dsh-plugin-whale-pet-desktop']
+const LEGACY_NAMES = ['dsh-plugin-whale-pet', 'dsh-plugin-whale-pet-desktop', '3d-whale-pet-desktop']
 
 function log(msg) { console.log(msg) }
 function fail(msg) { console.error('❌ ' + msg); process.exit(1) }
@@ -55,7 +58,16 @@ log('✅ 桌宠依赖安装完成')
 // dsh.profile.bundles 自动挂载，所以 profile 里只需要一条依赖。
 // 这一步做的是「去重与修正」：留下唯一正确的来源，删掉所有历史写法。
 const pkgPath = join(PROFILE, 'package.json')
-const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+/** 读 JSON 并容忍 BOM（用记事本改过 package.json 的用户会遇到，JSON.parse 直接炸）。 */
+function readJson(path) {
+  const text = readFileSync(path, 'utf8').replace(/^\uFEFF/u, '')
+  try {
+    return JSON.parse(text)
+  } catch (err) {
+    fail(`${path} 不是合法 JSON：${err.message}\n   手动修好后再运行本脚本。`)
+  }
+}
+const pkg = readJson(pkgPath)
 pkg.dependencies = pkg.dependencies ?? {}
 
 const localSpec = 'file:' + PLUGIN.replaceAll('\\', '/')
@@ -119,12 +131,17 @@ patch = patch.replace(blockRe, (match, id) => (ourIds.has(id) ? '' : match))
 
 // 5b. 摘掉空的 insert 块（只有 `- insert:` 没有任何子项）。
 //     这类残块是我们早期清理留下的，YAML 合法但毫无意义。
-patch = patch.replace(/^[ \t]*-[ \t]*insert:[ \t]*\r?\n(?=[ \t]*\r?\n|[ \t]*-[ \t]*(?:id|insert):|$)/gm, '')
+//     既要处理「后面还有别的块」，也要处理「它是文件最后一行且没有换行」。
+patch = patch.replace(
+  /^[ \t]*-[ \t]*insert:[ \t]*(?:\r?\n(?=[ \t]*\r?\n|[ \t]*-[ \t]*(?:id|insert):|$)|$)/gm,
+  '',
+)
 
 if (patch !== beforeClean) {
   // 清完可能只剩空白：补一个空数组，否则 DSH 会报
   // 「must be a top-level YAML array of loader patch entries」
   if (patch.trim() === '') patch = '[]\n'
+  else if (!patch.endsWith('\n')) patch += '\n'
   writeFileSync(patchPath, patch, 'utf8')
   log('🧹 已移除本插件的历史挂载记录（现由 dsh.bundle.patch 自动挂载）')
 } else {
@@ -145,5 +162,5 @@ log('')
 log('下一步：')
 log('  1. 完全退出 DeepSeek Harness（含托盘图标）')
 log('  2. 重新启动 DeepSeek Harness')
-log('  3. 侧边栏底部会出现「🐋 虎鲸桌宠」按钮，点它 → 启动')
+log('  3. 侧边栏底部会出现「🐋 3D小虎鲸」按钮，点它 → 启动')
 log('')
