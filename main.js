@@ -4,13 +4,16 @@
 //   2. 作为 harness gateway 的第二客户端：订阅事件流、派活、驱动情绪状态机
 const { app, BrowserWindow, ipcMain, Menu } = require('electron')
 const path = require('node:path')
-const { Gateway, fetchBalance } = require('./gateway.js')
+const { Gateway, fetchBalance, resolveGatewayUrl } = require('./gateway.js')
 
 const WINDOW_WIDTH = 420
 const WINDOW_HEIGHT = 400
-// 新版 dsh（桌面版）默认监听 19387；旧版 dsh web 默认 3080。
-// 可用 WHALE_PET_URL 显式覆盖。
-const GATEWAY_URL = process.env.WHALE_PET_URL || 'http://127.0.0.1:19387'
+// DSH 桌面版的监听端口**每次启动都是随机的**，没有固定端口可写。
+// 地址由 gateway.js 的 resolveGatewayUrl() 按优先级解析：
+//   1. WHALE_PET_URL       —— 插件 spawn 桌宠时把真实地址直接传进来（最可靠）
+//   2. 插件写的发现文件     —— $DSH_HOME/cache/whale-pet-dsh-url.json（手动 npm start）
+//   3. 默认端口探测        —— 旧版/固定端口场景的最后兜底
+// 每次重连都会重新解析，所以 DSH 重启换端口后桌宠能自己跟回来。
 
 let win = null
 let dragStartBounds = null
@@ -254,6 +257,8 @@ let lastEventAt = 0
 let mood = 'idle'
 let idleTimer = null
 const moodListeners = []
+/** 最近一次解析 DSH 地址时试过的候选，连不上时点名用。 */
+let lastTriedUrls = []
 
 let gateway = null
 
@@ -382,30 +387,49 @@ function handleSessionEvent(event, watching) {
 
 function connectGateway() {
   if (quitting) return
-  gateway = new Gateway(GATEWAY_URL, {
-    onStatus: (isConnected, url) => {
-      connected = isConnected
-      // 窗口可能已销毁（用户在退出时网关恰好断开），sendToWin 会安全跳过
-      sendToWin('pet:connection', { connected: isConnected, url })
-      if (isConnected && !sessionId && !quitting) {
-        pickCurrentSession().then((sid) => { sessionId = sid }).catch(() => {})
-      }
+  gateway = new Gateway(
+    // 每次连接前重新解析一次：DSH 重启换端口后不需要用户干预
+    () => {
+      lastTriedUrls = []
+      return resolveGatewayUrl((url) => { lastTriedUrls.push(url) })
     },
-    onEvent: (value) => {
-      if (quitting) return
-      handleFrame(value)
+    {
+      onStatus: (isConnected, url, info) => {
+        connected = isConnected
+        // 窗口可能已销毁（用户在退出时网关恰好断开），sendToWin 会安全跳过
+        sendToWin('pet:connection', {
+          connected: isConnected,
+          url,
+          reason: info && info.reason,
+          tried: info && info.tried,
+          hint: info && info.hint,
+        })
+        if (isConnected && !sessionId && !quitting) {
+          pickCurrentSession().then((sid) => { sessionId = sid }).catch(() => {})
+        }
+      },
+      onEvent: (value) => {
+        if (quitting) return
+        handleFrame(value)
+      },
+      onLog: (message, extra) => {
+        sendToWin('pet:log', { where: 'gateway', message, extra })
+      },
     },
-    onLog: (message, extra) => {
-      sendToWin('pet:log', { where: 'gateway', message, extra })
-    },
-  })
+  )
   gateway.connect()
 }
 
 // ---- 派活：renderer 请求 prompt，流式 chunk 转发，结束汇总 ----
 ipcMain.on('pet:prompt', async (event, text) => {
   if (!connected) {
-    event.reply('pet:reply', { error: '未连接到 harness，请先启动 dsh' })
+    // DSH 桌面版端口随机，用户根本不知道自己该填什么；这里把事实直接讲清楚。
+    const tried = (gateway && gateway.baseUrl) ? [gateway.baseUrl] : lastTriedUrls
+    const where = tried && tried.length > 0 ? `（试过 ${tried.join(' / ')}）` : ''
+    event.reply('pet:reply', {
+      error: `未连接到 harness${where}。请从 DSH 侧边栏「启动」桌宠（插件会把真实地址传进来），`
+        + '或手动设置 WHALE_PET_URL 指向 DSH 当前地址（侧边栏面板里会显示）',
+    })
     return
   }
   try {

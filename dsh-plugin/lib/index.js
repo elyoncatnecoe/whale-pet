@@ -5,17 +5,45 @@
 //       客户端半边用 fetch 调用。这条路由复用 DSH 的信任围栏 + 浏览器鉴权，
 //       所以只有本机已登录的页面能访问。
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** 插件自身目录。 */
 const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url))
 
-/** 路由前缀。带 -desktop 后缀，避免与其他宠物插件抢同一个路径。 */
+/** 路由前缀。带 3d- 前缀，避免与其他宠物插件抢同一个路径。 */
 const ROUTE = '/3d-whale-pet/rpc'
+
+/** DSH 数据目录（与桌宠侧 dshHome() 同一套推导规则）。 */
+const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh')
+
+/**
+ * 桌宠进程的 electron stderr 落盘位置。
+ * 桌宠是 GUI 进程，没有控制台；它若在启动阶段崩掉，唯一的线索就是这里。
+ */
+const ELECTRON_LOG = join(tmpdir(), 'whale-pet-electron.log')
+
+/** stderr 落盘上限：避免桌宠跑一整天把日志写成几百 MB。 */
+const ELECTRON_LOG_LIMIT = 256 * 1024
+
+/**
+ * DSH 地址发现文件（相对 DSH_HOME 的路径）。
+ *
+ * 桌面版 DSH 每次启动的监听端口都是随机的（由 OS 分配），桌宠没法猜。
+ * 所以 Host 半边把「当前 DSH 的 origin」写到这里，手动启动的桌宠
+ * （npm start，没经过本插件 spawn）就能读到同一个地址。
+ * 放 DSH_HOME 下是因为 Host 与桌宠都从 DSH_HOME 推导路径，基准天然一致。
+ */
+const DISCOVERY_RELATIVE = join('cache', 'whale-pet-dsh-url.json')
+
+/** 旧版本写的位置，仍然同步写一份，兼容更早的桌宠副本。 */
+const LEGACY_DISCOVERY_FILE = join(tmpdir(), 'whale-pet-dsh-url.json')
+
+/** webServer 服务引用：由 apply() 的 inject 回调填入，用来取当前监听地址。 */
+let webServerService
 
 /** 桌宠进程状态。 */
 const state = { child: null, startedAt: 0, lastError: undefined, installing: false }
@@ -23,6 +51,64 @@ const state = { child: null, startedAt: 0, lastError: undefined, installing: fal
 /** 是否在运行。 */
 function isRunning() {
   return state.child !== null && state.child.exitCode === null && !state.child.killed
+}
+
+/**
+ * 当前 DSH web 服务器的 origin（形如 http://127.0.0.1:52062）。
+ *
+ * 桌面版端口随机，所以绝不能写死；webServer 服务暴露了 getOrigin()/port，
+ * 但 getOrigin() 在 listen 完成前会抛错，这里一律降级成 undefined。
+ * @returns {string|undefined}
+ */
+function currentDshOrigin() {
+  const webServer = webServerService
+  if (!webServer) return undefined
+  try {
+    if (typeof webServer.getOrigin === 'function') return webServer.getOrigin()
+  } catch {
+    // 还没 listen：继续尝试 port 字段
+  }
+  const port = webServer.port
+  return port ? `http://127.0.0.1:${port}` : undefined
+}
+
+/**
+ * 把当前 DSH 地址写进发现文件（尽力而为，失败只影响「手动启动桌宠」场景）。
+ * @returns {string|undefined} 写入的地址；取不到监听地址时 undefined
+ */
+function publishDiscovery() {
+  const url = currentDshOrigin()
+  if (!url) return undefined
+  const payload = JSON.stringify(
+    { url, updatedAt: new Date().toISOString(), pid: process.pid },
+    null,
+    2,
+  ) + '\n'
+  const targets = [join(DSH_HOME, DISCOVERY_RELATIVE), LEGACY_DISCOVERY_FILE]
+  for (const file of targets) {
+    try {
+      mkdirSync(dirname(file), { recursive: true })
+      writeFileSync(file, payload, 'utf8')
+    } catch {
+      // 某个位置不可写不影响另一个；两个都失败时仍可靠 spawn 时传的 WHALE_PET_URL
+    }
+  }
+  return url
+}
+
+/**
+ * 追加 electron 的 stderr 到日志文件，超过 {@link ELECTRON_LOG_LIMIT} 后停止追加
+ * （保留启动阶段那一段最有诊断价值的内容，不至于无限增长）。
+ * @param {string} text - 本次读到的 stderr 片段
+ * @returns {void}
+ */
+function appendElectronLog(text) {
+  try {
+    if (existsSync(ELECTRON_LOG) && statSync(ELECTRON_LOG).size > ELECTRON_LOG_LIMIT) return
+    appendFileSync(ELECTRON_LOG, text, 'utf8')
+  } catch {
+    // 日志写不了不该影响桌宠进程本身
+  }
 }
 
 /**
@@ -76,6 +162,36 @@ function resolvePet() {
   return { dir: candidates[0], electron: undefined, candidates }
 }
 
+/**
+ * 识别「启动后秒退」的常见原因，把可操作的排查建议拼进错误信息。
+ *
+ * 已知的一条真实案例（issue #2）：桌宠放在非系统盘 / 虚拟卷（例如 `P:\`）上时，
+ * Electron 在启动阶段就崩（0xC0000005 / 0x80000003），连 `electron.exe --version`
+ * 都跑不起来，stderr 一个字都没有。插件侧只能识别并提示，改不了 Chromium 沙箱。
+ * @param {{ code?: number|null, signal?: string|null }|undefined} exit - 子进程退出信息
+ * @param {string} petDir - 桌宠目录（提示里点名）
+ * @returns {string}
+ */
+function quickExitHint(exit, petDir) {
+  const code = typeof exit?.code === 'number' ? exit.code >>> 0 : undefined
+  // 0xC0000005（访问冲突）、0x80000003（断点）：Electron/Chromium 在启动阶段直接崩
+  const crashed = code !== undefined && (code === 0xc0000005 || code === 0x80000003)
+  const drive = /^[A-Za-z]:/u.exec(petDir)?.[0].toUpperCase()
+  const systemDrive = String(process.env.SystemDrive || 'C:').toUpperCase()
+  const otherDrive = drive !== undefined && drive !== systemDrive
+  if (crashed) {
+    const where = otherDrive
+      ? `你的桌宠目录在 ${drive}（非系统盘）：放在网络盘、虚拟盘或某些挂载卷上时，`
+      : '最常见的原因是桌宠目录不在本地磁盘——放在网络盘、虚拟盘或某些挂载卷（例如 P:\\）上时，'
+    return '退出码看起来是 Electron 启动阶段直接崩溃（0xC0000005 / 0x80000003）。'
+      + `${where}任何 Electron 二进制都会一启动就崩，与本插件无关。`
+      + '请把桌宠目录移到本地磁盘（例如 C:\\Users\\<你>\\AppData\\Local\\whale-pet）后重试。'
+  }
+  return `桌宠启动后立即退出。请确认 ${petDir} 下依赖完整（在该目录执行 npm install），`
+    + '并检查安全软件是否拦截了 electron.exe。'
+    + (otherDrive ? `另外注意：桌宠目录在 ${drive}（非系统盘），若它在网络盘或虚拟盘上，Electron 会一启动就崩。` : '')
+}
+
 /** 启动桌宠。 */
 async function startPet() {
   if (isRunning()) return { ok: true, already: true }
@@ -97,12 +213,28 @@ async function startPet() {
     // 它会让 electron.exe 退化成纯 Node 进程，导致 main.js 拿不到 ipcMain 而秒退。
     const env = { ...process.env }
     delete env.ELECTRON_RUN_AS_NODE
+    // 把当前 DSH 的真实监听地址交给桌宠：桌面版端口每次启动都变，
+    // 桌宠自己猜不到，由 Host 直接传是最可靠的方式。
+    const origin = publishDiscovery()
+    if (origin) env.WHALE_PET_URL = origin
+    // stderr 落盘：桌宠没有控制台，启动阶段崩掉的线索全在这里。
+    let stderrTail = ''
+    try { writeFileSync(ELECTRON_LOG, '', 'utf8') } catch { /* 临时目录不可写 */ }
     const child = spawn(electron, [petDir], {
       cwd: petDir,
-      stdio: 'ignore',
+      stdio: ['ignore', 'ignore', 'pipe'],
       env,
     })
-    child.on('exit', () => { state.child = null })
+    child.stderr?.on('data', (chunk) => {
+      const text = String(chunk)
+      stderrTail = (stderrTail + text).slice(-4000)
+      appendElectronLog(text)
+    })
+    let exitInfo
+    child.on('exit', (code, signal) => {
+      exitInfo = { code, signal }
+      state.child = null
+    })
     child.on('error', (err) => { state.lastError = err?.message ?? String(err); state.child = null })
     state.child = child
     state.startedAt = Date.now()
@@ -110,7 +242,13 @@ async function startPet() {
     // 等一小会儿确认进程没秒退，把真实原因带回给界面。
     await new Promise((r) => setTimeout(r, 1200))
     if (!isRunning()) {
-      return { ok: false, error: state.lastError || '桌宠启动后立即退出，请检查依赖是否完整（在 pet 目录执行 npm install）' }
+      const details = [
+        state.lastError,
+        stderrTail.trim().slice(-800),
+        quickExitHint(exitInfo, petDir),
+        `electron 完整输出：${ELECTRON_LOG}`,
+      ].filter(Boolean)
+      return { ok: false, error: details.join('\n') }
     }
     return { ok: true }
   } catch (err) {
@@ -222,6 +360,8 @@ async function queryBalance() {
 const METHODS = {
   status: async () => {
     const { dir, electron } = resolvePet()
+    // 顺带刷新发现文件：DSH 可能刚重启过（端口变了），让手动启动的桌宠也能跟上。
+    const dshUrl = publishDiscovery()
     return {
       ok: true,
       running: isRunning(),
@@ -231,6 +371,10 @@ const METHODS = {
       // 让界面能区分「找不到目录」和「目录在但依赖没装」
       ready: Boolean(dir && electron),
       installing: Boolean(state.installing),
+      // 面板里直接告诉用户当前 DSH 地址，连不上时不用自己去查端口。
+      dshUrl,
+      // 桌宠崩溃时的现场在这里看，排查顺序：先看这个文件。
+      electronLog: ELECTRON_LOG,
     }
   },
   start: async () => startPet(),
@@ -269,6 +413,10 @@ async function handleRpc(req, res) {
 function mountRoute(ctx) {
   const webServer = ctx.get('webServer')
   if (!webServer) return () => {}
+  webServerService = webServer
+  // 插件就绪即写入一次发现文件；listen 可能稍后才完成，再补两次（端口由 OS 分配）。
+  publishDiscovery()
+  const retries = [setTimeout(publishDiscovery, 1500), setTimeout(publishDiscovery, 5000)]
 
   const unregister = webServer.register({
     kind: 'exact',
@@ -292,7 +440,10 @@ function mountRoute(ctx) {
       await handleRpc(req, res)
     },
   })
-  return () => unregister()
+  return () => {
+    for (const timer of retries) clearTimeout(timer)
+    unregister()
+  }
 }
 
 export function apply(ctx) {
@@ -303,5 +454,5 @@ export function apply(ctx) {
   ctx.effect(() => () => { stopPet() }, 'whale-pet: stop pet on dispose')
 }
 
-export const name = 'whale-pet'
+export const name = '3d-whale-pet'
 export const inject = ['webServer', 'connection']

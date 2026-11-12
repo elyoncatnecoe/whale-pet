@@ -1236,7 +1236,10 @@
                         bridge.onConnection((info) => {
                 if (!info.connected) {
                     window.Pet.setMood('blocked');
-                    window.Pet.say('还没连上 harness，请先启动 dsh web', 5000);
+                    // 端口每次启动都变，所以这里把「当前地址」讲出来，用户不用自己去查
+                    window.Pet.say(info.url
+                        ? '还没连上 harness：' + info.url
+                        : '还没连上 harness，请从 DSH 侧边栏启动桌宠', 5000);
                 }
             });
             bridge.onReply((data) => {
