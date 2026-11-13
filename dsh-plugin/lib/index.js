@@ -5,7 +5,7 @@
 //       客户端半边用 fetch 调用。这条路由复用 DSH 的信任围栏 + 浏览器鉴权，
 //       所以只有本机已登录的页面能访问。
 import { spawn } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -45,8 +45,14 @@ const LEGACY_DISCOVERY_FILE = join(tmpdir(), 'whale-pet-dsh-url.json')
 /** webServer 服务引用：由 apply() 的 inject 回调填入，用来取当前监听地址。 */
 let webServerService
 
-/** 桌宠进程状态。 */
-const state = { child: null, startedAt: 0, lastError: undefined, installing: false }
+/** 桌宠进程状态。starting 是「正在启动」的 Promise，用来串行化并发的 start 请求。 */
+const state = { child: null, startedAt: 0, lastError: undefined, installing: false, starting: undefined }
+
+/** 已写进日志文件的字节数（每次启动重置），避免每个 chunk 都 statSync 一次。 */
+let logBytes = 0
+
+/** 上一次写进发现文件的地址，相同就不重复写（面板每 3s 轮询一次 status）。 */
+let lastPublishedUrl
 
 /** 是否在运行。 */
 function isRunning() {
@@ -56,8 +62,8 @@ function isRunning() {
 /**
  * 当前 DSH web 服务器的 origin（形如 http://127.0.0.1:52062）。
  *
- * 桌面版端口随机，所以绝不能写死；webServer 服务暴露了 getOrigin()/port，
- * 但 getOrigin() 在 listen 完成前会抛错，这里一律降级成 undefined。
+ * 桌面版端口随机，所以绝不能写死；webServer 服务暴露了 getOrigin()/port/host，
+ * 但 getOrigin() 在 listen 完成前会抛错，这里降级成「用 port + 配置里的 host/协议」。
  * @returns {string|undefined}
  */
 function currentDshOrigin() {
@@ -69,30 +75,43 @@ function currentDshOrigin() {
     // 还没 listen：继续尝试 port 字段
   }
   const port = webServer.port
-  return port ? `http://127.0.0.1:${port}` : undefined
+  if (!port) return undefined
+  const protocol = typeof webServer.protocol === 'string' ? webServer.protocol : 'http:'
+  // host 可能是 IPv6 字面量，URL 里必须带方括号
+  const rawHost = typeof webServer.host === 'string' && webServer.host !== '' ? webServer.host : '127.0.0.1'
+  const host = rawHost.includes(':') ? `[${rawHost}]` : rawHost
+  return `${protocol}//${host}:${port}`
 }
 
 /**
  * 把当前 DSH 地址写进发现文件（尽力而为，失败只影响「手动启动桌宠」场景）。
- * @returns {string|undefined} 写入的地址；取不到监听地址时 undefined
+ *
+ * 相同地址不重复写：面板每 3s 轮询一次 status，每次都落盘纯属浪费。
+ * 地址一变（DSH 重启换了随机端口）立刻重写，桌宠重连时就能读到新地址。
+ * @returns {string|undefined} 当前地址；取不到监听地址时 undefined
  */
 function publishDiscovery() {
   const url = currentDshOrigin()
   if (!url) return undefined
+  if (url === lastPublishedUrl) return url
   const payload = JSON.stringify(
     { url, updatedAt: new Date().toISOString(), pid: process.pid },
     null,
     2,
   ) + '\n'
   const targets = [join(DSH_HOME, DISCOVERY_RELATIVE), LEGACY_DISCOVERY_FILE]
+  let written = false
   for (const file of targets) {
     try {
       mkdirSync(dirname(file), { recursive: true })
       writeFileSync(file, payload, 'utf8')
+      written = true
     } catch {
       // 某个位置不可写不影响另一个；两个都失败时仍可靠 spawn 时传的 WHALE_PET_URL
     }
   }
+  // 只有真写成功才记住，否则下次还得再试
+  if (written) lastPublishedUrl = url
   return url
 }
 
@@ -100,15 +119,18 @@ function publishDiscovery() {
  * 追加 electron 的 stderr 到日志文件，超过 {@link ELECTRON_LOG_LIMIT} 后停止追加
  * （保留启动阶段那一段最有诊断价值的内容，不至于无限增长）。
  * @param {string} text - 本次读到的 stderr 片段
+ * @param {number} [bytes] - 该片段的字节数；省略时按 UTF-8 现算
  * @returns {void}
  */
-function appendElectronLog(text) {
+function appendElectronLog(text, bytes) {
+  if (logBytes >= ELECTRON_LOG_LIMIT) return
   try {
-    if (existsSync(ELECTRON_LOG) && statSync(ELECTRON_LOG).size > ELECTRON_LOG_LIMIT) return
     appendFileSync(ELECTRON_LOG, text, 'utf8')
   } catch {
     // 日志写不了不该影响桌宠进程本身
+    return
   }
+  logBytes += bytes ?? Buffer.byteLength(text)
 }
 
 /**
@@ -195,6 +217,21 @@ function quickExitHint(exit, petDir) {
 /** 启动桌宠。 */
 async function startPet() {
   if (isRunning()) return { ok: true, already: true }
+  // 串行化：连点两下「启动」会同时进来两次，两次 spawn 就双开了（还互相抢 state.child）。
+  if (state.starting !== undefined) return state.starting
+  state.starting = doStartPet()
+  try {
+    return await state.starting
+  } finally {
+    state.starting = undefined
+  }
+}
+
+/**
+ * startPet 的实际主体（已由 startPet 串行化）。
+ * @returns {Promise<object>} 与 RPC 的 start 返回同形
+ */
+async function doStartPet() {
   const { dir: petDir, electron, candidates } = resolvePet()
   if (!petDir) {
     state.lastError = '找不到桌宠目录，请设置环境变量 WHALE_PET_DIR 指向 whale-pet 项目目录'
@@ -209,16 +246,20 @@ async function startPet() {
     return { ok: false, error: state.lastError, needsInstall: true, petDir }
   }
   try {
-    // 关键：剥掉 ELECTRON_RUN_AS_NODE。DSH 宿主可能带着这个变量，
-    // 它会让 electron.exe 退化成纯 Node 进程，导致 main.js 拿不到 ipcMain 而秒退。
+    // 关键：剥掉会干扰 electron 的两个继承变量。
+    //  - ELECTRON_RUN_AS_NODE：DSH 用 Electron 的 Node 模式跑 profile 宿主，这个变量
+    //    一定在；electron.exe 见到它会退化成纯 Node，main.js 拿不到 ipcMain 而秒退。
+    //  - NODE_OPTIONS：会被 Electron 主进程吃（--require/--inspect 会直接搞坏启动）。
     const env = { ...process.env }
     delete env.ELECTRON_RUN_AS_NODE
+    delete env.NODE_OPTIONS
     // 把当前 DSH 的真实监听地址交给桌宠：桌面版端口每次启动都变，
     // 桌宠自己猜不到，由 Host 直接传是最可靠的方式。
     const origin = publishDiscovery()
     if (origin) env.WHALE_PET_URL = origin
     // stderr 落盘：桌宠没有控制台，启动阶段崩掉的线索全在这里。
     let stderrTail = ''
+    logBytes = 0
     try { writeFileSync(ELECTRON_LOG, '', 'utf8') } catch { /* 临时目录不可写 */ }
     const child = spawn(electron, [petDir], {
       cwd: petDir,
@@ -228,20 +269,32 @@ async function startPet() {
     child.stderr?.on('data', (chunk) => {
       const text = String(chunk)
       stderrTail = (stderrTail + text).slice(-4000)
-      appendElectronLog(text)
+      appendElectronLog(text, Buffer.byteLength(text))
     })
     let exitInfo
     child.on('exit', (code, signal) => {
       exitInfo = { code, signal }
-      state.child = null
+      // 只在「还是当前这个 child」时清空：快速启停时旧 child 的 exit
+      // 会在新 child 已经就位之后才到，无脑置空会让新进程失去追踪（孤儿）。
+      if (state.child === child) state.child = null
     })
-    child.on('error', (err) => { state.lastError = err?.message ?? String(err); state.child = null })
+    child.on('error', (err) => {
+      state.lastError = err?.message ?? String(err)
+      if (state.child === child) state.child = null
+    })
     state.child = child
     state.startedAt = Date.now()
     state.lastError = undefined
     // 等一小会儿确认进程没秒退，把真实原因带回给界面。
     await new Promise((r) => setTimeout(r, 1200))
     if (!isRunning()) {
+      // 'exit' 可能先于最后的 stderr 数据到达：稍等 'close' 把尾巴收完再拼错误信息。
+      if (exitInfo === undefined) {
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, 600)
+          child.once('close', () => { clearTimeout(timer); resolve() })
+        })
+      }
       const details = [
         state.lastError,
         stderrTail.trim().slice(-800),
@@ -257,8 +310,17 @@ async function startPet() {
   }
 }
 
-/** 停止桌宠。 */
-function stopPet() {
+/**
+ * 停止桌宠。
+ *
+ * 若正好有一次「启动」在飞（startPet 还在等首 1.2s 确认），先等它落定再杀：
+ * 否则刚拉起来的 child 会被 startPet 的「秒退」判定误报成启动失败。
+ * @returns {Promise<{ ok: boolean, already?: boolean }>}
+ */
+async function stopPet() {
+  if (state.starting !== undefined) {
+    try { await state.starting } catch { /* 启动失败也要继续收尾 */ }
+  }
   if (!isRunning()) { state.child = null; return { ok: true, already: true } }
   try { state.child.kill() } catch { /* 已退出 */ }
   state.child = null

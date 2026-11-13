@@ -11,12 +11,30 @@
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
+import { cleanupProfilePatches } from './cleanup-profile.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PET = join(HERE, '..', 'pet')
 
 function log(m) { console.log(`[whale-pet] ${m}`) }
+
+// 第一步：清理 profile 里指向本插件的历史挂载行。
+//
+// 老版本（0.1.x）的安装脚本教用户往 profile 的 cordis.patch.yml 手写挂载行，
+// 而本插件现在自带 dsh.bundle.patch 自动挂载 → 两条 → 同一个 client bundle
+// 执行两遍 → DSH 报 duplicate factory registration，整条侧边栏入口失效
+// （issue #2 的第一个问题）。用 `dsh plugin add` 升级的老用户不会主动跑
+// install.mjs，所以在这里 best-effort 清一次。
+// 绝不让它影响安装：任何异常都只打印，不抛出。
+try {
+  const home = process.env.DSH_HOME || join(homedir(), '.dsh')
+  const res = cleanupProfilePatches({ home, log })
+  if (res.removed.length > 0) log(`已清理 ${res.removed.length} 条本插件的历史挂载行`)
+} catch (err) {
+  log('⚠️ 清理 profile 历史挂载行失败（已忽略）：' + (err && err.message ? err.message : String(err)))
+}
 
 const exe = process.platform === 'win32' ? 'electron.exe' : 'electron'
 const installed = join(PET, 'node_modules', 'electron', 'dist', exe)

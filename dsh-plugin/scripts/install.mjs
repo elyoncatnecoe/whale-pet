@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
+import { cleanPatchText } from './cleanup-profile.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PLUGIN = resolve(HERE, '..')
@@ -110,42 +111,25 @@ if (!bundles.includes(finalName)) {
   log(`✅ 已把 ${finalName} 加入 profile bundles`)
 }
 
-// 5. 在 cordis.patch.yml 里加挂载记录
+// 5. 清理 cordis.patch.yml 里指向本插件的历史挂载行
 //
-// 重要前提：本插件现在自带 dsh.bundle.patch（见 dsh-plugin/cordis.patch.yml），
+// 重要前提：本插件自带 dsh.bundle.patch（见 dsh-plugin/cordis.patch.yml），
 // 由 profile 的 dsh.profile.bundles 自动挂载，**根本不需要在用户 patch 里手写条目**。
-// 历史上我们写过，那些残留记录会指向旧包名，导致：
-//   dsh: warning: 1 entry did not activate ... failed to import
-// 所以这里以「清理」为主：把本插件的所有历史遗留条目摘干净。
+// 历史上我们写过，那些残留行会让插件被挂载两次（issue #2 的第一个问题）。
+// 清理逻辑在 scripts/cleanup-profile.mjs 里，postinstall 也会 best-effort 调一次，
+// 这样「用 dsh plugin add 升级」的老用户也能自动清干净。
 //
-// 若清理后 patch 为空，需要补一个合法的空数组（YAML 不允许空文件当 patch）。
+// 注意只摘「带 name: 的行」：只有 id + config 的行是用户对本插件行的配置覆盖，要留着。
 const patchPath = join(PROFILE, 'cordis.patch.yml')
-let patch = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
-
-const beforeClean = patch
-// 5a. 摘掉任何指向本插件的 id 条目（含旧 id 与当前 id），
-//     无论 name 写的是新包名、旧包名还是不存在的包名。
-const ourIds = new Set([ENTRY_ID, ...LEGACY_IDS])
-const blockRe = /^[ \t]*-[ \t]*id:[ \t]*([A-Za-z0-9._-]+)[ \t]*\r?\n(?:[ \t]+[^\r\n]*\r?\n?)*/gm
-patch = patch.replace(blockRe, (match, id) => (ourIds.has(id) ? '' : match))
-
-// 5b. 摘掉空的 insert 块（只有 `- insert:` 没有任何子项）。
-//     这类残块是我们早期清理留下的，YAML 合法但毫无意义。
-//     既要处理「后面还有别的块」，也要处理「它是文件最后一行且没有换行」。
-patch = patch.replace(
-  /^[ \t]*-[ \t]*insert:[ \t]*(?:\r?\n(?=[ \t]*\r?\n|[ \t]*-[ \t]*(?:id|insert):|$)|$)/gm,
-  '',
-)
-
-if (patch !== beforeClean) {
-  // 清完可能只剩空白：补一个空数组，否则 DSH 会报
-  // 「must be a top-level YAML array of loader patch entries」
-  if (patch.trim() === '') patch = '[]\n'
-  else if (!patch.endsWith('\n')) patch += '\n'
-  writeFileSync(patchPath, patch, 'utf8')
-  log('🧹 已移除本插件的历史挂载记录（现由 dsh.bundle.patch 自动挂载）')
-} else {
-  log('✅ 用户 patch 中无本插件残留记录')
+if (existsSync(patchPath)) {
+  const before = readFileSync(patchPath, 'utf8')
+  const cleaned = cleanPatchText(before, [ENTRY_ID, ...LEGACY_IDS])
+  if (cleaned.changed) {
+    writeFileSync(patchPath, cleaned.text, 'utf8')
+    log(`🧹 已移除本插件的历史挂载记录 ${cleaned.removed.length} 条（现由 dsh.bundle.patch 自动挂载）`)
+  } else {
+    log('✅ 用户 patch 中无本插件残留记录')
+  }
 }
 
 // 6. pnpm install 把插件链接进 profile

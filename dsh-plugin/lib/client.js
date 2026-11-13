@@ -1,14 +1,22 @@
-// 幂等护栏：同一个 bundle 若被两条 Loader 行挂载（例如插件自带的 bundle patch
-// 已经插了一行，用户又在 profile 的 cordis.patch.yml 里手写了一条），浏览器会把这个
-// 脚本执行两次；DSH 的 client-modules 对同一 id 的第二次注册会直接抛
-//   client-modules: duplicate factory registration for "3d-whale-pet"
-// 整条客户端半边（侧边栏按钮）就都不激活了。工厂注册一次就够，所以第二次执行
-// 在这里变成安全 no-op —— 用户就算踩了这个坑，按钮也不会消失。
-if (window.__3dWhalePetClientRegistered__) {
-	// 已注册过：什么都不做
+// 幂等护栏（同时兼顾 HMR）：
+//
+// 1) 同一个 bundle 若被两条 Loader 行挂载（插件自带的 bundle patch 已经插了一行，
+//    用户又在 profile 的 cordis.patch.yml 里手写了一条），浏览器会把这个脚本执行两次。
+//    DSH 的 client-modules 在 queue 模式下 load 不查重，重复项会在 create() 回放时
+//    撞上 register() 的查重而抛
+//      client-modules: duplicate factory registration for "3d-whale-pet"
+//    并且是**整个模块系统构造失败**（所有客户端半边都死）。所以 queue 模式的第二遍
+//    直接跳过。
+// 2) 但热更新（HMR）换 rev 时会先 invalidate（删掉 id 的 factory/loadCache）再重放本脚本，
+//    那时必须允许再注册一次，否则会报
+//      could not load "3d-whale-pet": ... loaded without registering
+//    因此只在「已经 live 运行」时放行重放，并用 try/catch 只吞掉重复注册这一种错。
+if (window.__3dWhalePetClientRegistered__ && window.__ModuleLoader__.mode !== "live") {
+	// queue 模式的第二遍执行：工厂已入队，再注册一次会炸掉整个模块系统，跳过
 } else {
 	window.__3dWhalePetClientRegistered__ = true;
-	window.__ModuleLoader__.load({
+	try {
+		window.__ModuleLoader__.load({
 	// 注册 id 必须等于本包的 package.json name：DSH 的 client-modules 用
 	// 「最近的 package manifest 名」作为浏览器模块 id，并在此 id 上等这条
 	// bundle 注册；对不上会报 "loaded without registering ..." 而整条客户端半边失效。
@@ -205,5 +213,10 @@ if (window.__3dWhalePetClientRegistered__) {
 		exports.inject = inject;
 		return module.exports;
 	},
-	});
+		});
+	} catch (err) {
+		// live 模式下重复挂载时 register 会抛这一种错：吞掉它，别连带整页的其它插件。
+		// 其它错误（语法/依赖缺失等）必须继续抛，否则样式问题和加载失败都会被掩盖。
+		if (!/duplicate factory registration/u.test(String(err && err.message))) throw err;
+	}
 }

@@ -19,6 +19,7 @@
     "cordis.patch.yml",
     "scripts/postinstall.mjs",
     "scripts/install.mjs",
+    "scripts/cleanup-profile.mjs",
     "scripts/bundle-pet.mjs",
     "pet"
   ],

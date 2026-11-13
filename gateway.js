@@ -173,8 +173,11 @@ function readDiscoveryUrl() {
 /**
  * 探测某个地址后面是不是 DSH。
  *
- * DSH 的信任围栏对任何没有 browser-session cookie 的请求都回 401/403，
- * 所以先用 credentials.yaml 里的密钥签一张 cookie 再去要首页，命中就认。
+ * 判据是「带上签好的 browser-session cookie 能拿到 DSH 的首页」：0.2.x 的信任围栏
+ * 对没有/错误 cookie 的请求回 401/403，带对了才 200 且 HTML 里有 __DSH_BOOT__。
+ * 所以**不能**把 401/403 当成「是 DSH」——那会把任何本地要鉴权的服务误认成 DSH。
+ * 拿不到密钥时（首次安装、凭据还没生成）退化为「HTTP 端口有响应」，
+ * 仅用于判断发现文件里的地址是否还活着。
  * @param {string} baseUrl
  * @param {Buffer|undefined} secret - browser-session 签名密钥
  * @returns {Promise<boolean>}
@@ -185,11 +188,9 @@ async function probeDsh(baseUrl, secret) {
   try {
     const res = await fetch(baseUrl + '/', {
       headers,
-      signal: AbortSignal.timeout(1200),
+      signal: AbortSignal.timeout(1500),
     })
-    // 需要鉴权的本地服务：极可能就是 DSH（真正验证留给我们自己的请求）
-    if (res.status === 401 || res.status === 403) return true
-    if (!res.ok) return false
+    if (!res.ok) return secret === undefined && (res.status === 401 || res.status === 403)
     const text = await res.text()
     return /__DSH_BOOT__|DeepSeek Harness/.test(text)
   } catch {
@@ -206,7 +207,7 @@ async function probeDsh(baseUrl, secret) {
  * @returns {Promise<string|undefined>}
  */
 async function resolveGatewayUrl(onTried) {
-  const explicit = process.env.WHALE_PET_URL
+  const explicit = (process.env.WHALE_PET_URL || '').trim()
   if (explicit) return explicit.replace(/\/+$/u, '')
   const secret = readAuthSecret()
   const tried = []
